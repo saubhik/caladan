@@ -19,7 +19,8 @@ void ServerHandler(void *arg) {
 }
 
 void ClientHandler(void *arg) {
-    
+    std::unique_ptr<rt::TcpConn> conn(rt::TcpConn::Dial({0, 0}, raddr));
+    if (unlikely(conn == nullptr)) panic("couldn't connect to raddr");
 }
 
 int main(int argc, char *argv[]) {
