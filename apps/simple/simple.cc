@@ -6,14 +6,16 @@ extern "C" {
 #include "runtime.h"
 #include "net.h"
 
+#include <iostream>
 #include <string>
 #include <memory>
 
+netaddr laddr;
 netaddr raddr;
 constexpr uint64_t simplePort = 8001;
 
 void ServerHandler(void *arg) {
-    std::unique_ptr<rt::TcpQueue> q(rt::TcpQueue::Listen({0, simplePort}, 4096));
+    std::unique_ptr<rt::TcpQueue> q(rt::TcpQueue::Listen(laddr, 4096));
     if (q == nullptr) panic("couldn't listen for connections");
 
     while (true) {
@@ -39,13 +41,25 @@ int StringToAddr(const char *str, uint32_t *addr) {
 int main(int argc, char *argv[]) {
     int ret;
 
+    if (argc < 4) {
+        std::cerr << "usage: [cfg_file] [cmd] [ip]..." << std::endl;
+        return -EINVAL;
+    }
+
     std::string cmd = argv[2];
     if (cmd.compare("server") == 0) {
+        ret = StringToAddr(argv[3], &laddr.ip);
+        if (ret) return -EINVAL;
+        laddr.port = simplePort;
+
         ret = runtime_init(argv[1], ServerHandler, NULL);
         if (ret) {
             printf("failed to start runtime\n");
             return ret;
         }
+    } else if (cmd.compare("client") != 0) {
+        std::cerr << "usage: [cfg_file] client [remote_ip]" << std::endl;
+        return -EINVAL;
     }
 
     ret = StringToAddr(argv[3], &raddr.ip);
