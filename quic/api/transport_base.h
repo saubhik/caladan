@@ -9,4 +9,4 @@ class QuicTransportBase : public QuicSocket {
    ~QuicTransportBase() override;
 };
 
-}
+} // namespace quic

@@ -30,4 +30,4 @@ class QuicClientTransport
   virtual void Start(ConnectionCallback* cb);
 };
 
-}
+} // namespace quic
