@@ -1,17 +1,24 @@
 #pragma once
 
 extern "C" {
+#include <base/kref.h>
+#include <runtime/net/defs.h>
+#include <runtime/net/waitq.h>
 #include <runtime/udp.h>
 }
 
 #include <thread>
 
-#include <lib/socket_address.h>
+#include <quic/lib/netops.h>
+#include <quic/lib/network_socket.h>
+#include <quic/lib/socket_address.h>
 
 namespace quic {
 
 class AsyncUDPSocket {
  public:
+  enum class FDOwnership { OWNS, SHARED };
+
   AsyncUDPSocket(const AsyncUDPSocket&) = delete;
   AsyncUDPSocket& operator=(const AsyncUDPSocket&) = delete;
 
@@ -37,11 +44,9 @@ class AsyncUDPSocket {
      * to drop few bytes because of running out of buffer space.
      * OnDataAvailableParams::gro is the GRO segment size
      */
-    virtual void OnDataAvailable(
-        const quic::SocketAddress& client,
-        size_t len,
-        bool truncated,
-        OnDataAvailableParams params) noexcept = 0;
+    virtual void OnDataAvailable(const quic::SocketAddress& client, size_t len,
+                                 bool truncated,
+                                 OnDataAvailableParams params) noexcept = 0;
 
     /**
      * Notifies when data is available. This is only invoked when
@@ -101,7 +106,7 @@ class AsyncUDPSocket {
 
   struct WriteOptions {
     WriteOptions() = default;
-    WriteOptions(int gsoVal): gso(gsoVal) {}
+    WriteOptions(int gsoVal) : gso(gsoVal) {}
     int gso{0};
   };
 
@@ -114,23 +119,12 @@ class AsyncUDPSocket {
   }
 
   /**
-   * Contains options to pass to bind.
-   */
-  struct BindOptions {
-    BindOptions() noexcept {}
-    // Whether IPV6_ONLY should be set on the socket.
-    bool bindV6Only{true};
-    std::string ifName;
-  };
-
-  /**
    * Bind the socket to the following address. If port is not
    * set in the `address` an ephemeral port is chosen and you can
    * use `Address()` method above to get it after this method successfully
-   * returns. The parameter BindOptions contains parameters for the bind.
+   * returns.
    */
-  virtual void Bind(
-      const quic::SocketAddress& address, BindOptions options = BindOptions());
+  virtual void Bind(const quic::SocketAddress& address);
 
   /**
    * Connects the UDP socket to a remote destination address provided in
@@ -152,10 +146,19 @@ class AsyncUDPSocket {
   virtual void Connect(const quic::SocketAddress& address);
 
  private:
-  udpconn_t *sock_;
+  void Init(sa_family_t family);
+
+  NetworkSocket fd_;
+  FDOwnership ownership_;
+
+  // Temp space to receive client address.
+  quic::SocketAddress client_address_;
+
   quic::SocketAddress local_address_;
+
+  // If the socket is connected.
   quic::SocketAddress connected_address_;
   bool connected_{false};
 };
 
-} // namespace quic
+}  // namespace quic
