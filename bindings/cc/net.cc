@@ -1,8 +1,8 @@
 #include "net.h"
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
-#include <algorithm>
 
 namespace {
 
