@@ -63,50 +63,6 @@ inline void Yield(void) { thread_yield(); }
 // A C++11 style thread class
 class Thread {
  public:
-  // Thread::Id
-  class Id {
-    thread_id_t thread_id_;
-
-   public:
-    Id() noexcept : thread_id_() {}
-    explicit Id(thread_id_t id) : thread_id_(id) {}
-
-   private:
-    friend class Thread;
-    friend class std::hash<Thread::Id>;
-
-    friend bool operator==(Thread::Id x, Thread::Id y) noexcept;
-    friend bool operator<(Thread::Id x, Thread::Id y) noexcept;
-
-    template <class _CharT, class _Traits>
-    friend std::basic_ostream<_CharT, _Traits>& operator<<(
-        std::basic_ostream<_CharT, _Traits>& out, Thread::Id id);
-  };
-
-  inline bool operator==(Thread::Id x, Thread::Id y) noexcept {
-    return x.thread_id_ == y.thread_id_;
-  }
-
-  inline bool operator<(Thread::Id x, Thread::Id y) noexcept {
-    return x.thread_id_ < y.thread_id_;
-  }
-
-  template <>
-  struct std::hash<Thread::Id> : public std::__hash_base<size_t, Thread::Id> {
-    size_t operator()(const Thread::Id& id) const noexcept {
-      return std::_Hash_impl::hash(id.thread_id_);
-    }
-  };
-
-  template <class _CharT, class _Traits>
-  inline std::basic_ostream<_CharT, _Traits>& operator<<(
-      std::basic_ostream<_CharT, _Traits>& out, Thread::Id id) {
-    if (id == Thread::Id())
-      return out << "Thread::Id of a non-executing thread";
-    else
-      return out << id_.thread_id_;
-  }
-
   // boilerplate constructors.
   Thread() : join_data_(nullptr) {}
   ~Thread();
@@ -135,6 +91,26 @@ class Thread {
   // Detaches the thread, indicating it won't be joined in the future.
   void Detach();
 
+  // Similar to std::thread::id.
+  class Id {
+    thread_id_t thread_id_;
+
+   public:
+    Id() noexcept : thread_id_() {}
+    explicit Id(thread_id_t id) : thread_id_(id) {}
+
+   private:
+    friend class Thread;
+    friend class std::hash<Thread::Id>;
+
+    friend bool operator==(Thread::Id x, Thread::Id y) noexcept;
+    friend bool operator<(Thread::Id x, Thread::Id y) noexcept;
+
+    template <class _CharT, class _Traits>
+    friend std::basic_ostream<_CharT, _Traits>& operator<<(
+        std::basic_ostream<_CharT, _Traits>& out, Thread::Id id);
+  };
+
   Thread::Id GetId() const noexcept { return id_; }
 
  private:
@@ -142,4 +118,39 @@ class Thread {
   thread_internal::join_data* join_data_;
 };
 
+inline bool operator==(Thread::Id x, Thread::Id y) noexcept {
+  return x.thread_id_ == y.thread_id_;
+}
+
+inline bool operator<(Thread::Id x, Thread::Id y) noexcept {
+  return x.thread_id_ < y.thread_id_;
+}
+
+inline bool operator<=(Thread::Id x, Thread::Id y) noexcept { return !(y < x); }
+
+inline bool operator>(Thread::Id x, Thread::Id y) noexcept { return y < x; }
+
+inline bool operator>=(Thread::Id x, Thread::Id y) noexcept { return !(x < y); }
+
+template <class _CharT, class _Traits>
+inline std::basic_ostream<_CharT, _Traits>& operator<<(
+    std::basic_ostream<_CharT, _Traits>& out, Thread::Id id) {
+  if (id == Thread::Id())
+    return out << "Thread::Id of a non-executing thread";
+  else
+    return out << id.thread_id_;
+}
+
 }  // namespace rt
+
+// Inject custom specialization of std::hash in namespace std.
+namespace std {
+
+template <>
+struct hash<rt::Thread::Id> : public __hash_base<size_t, rt::Thread::Id> {
+  size_t operator()(const rt::Thread::Id& id) const noexcept {
+    return _Hash_impl::hash(id.thread_id_);
+  }
+};
+
+}  // namespace std
