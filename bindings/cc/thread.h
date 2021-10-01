@@ -14,16 +14,11 @@ namespace rt {
 namespace thread_internal {
 
 struct join_data {
-  join_data(std::function<void()>&& func)
-      : done_(false), waiter_(nullptr), func_(std::move(func)) {
-    spin_lock_init(&lock_);
-  }
-  join_data(const std::function<void()>& func)
-      : done_(false), waiter_(nullptr), func_(func) {
-    spin_lock_init(&lock_);
-  }
+  join_data(std::function<void()>&& func);
+  join_data(const std::function<void()>& func);
 
   spinlock_t lock_;
+  thread_id_t id_;
   bool done_;
   thread_t* waiter_;
   std::function<void()> func_;
@@ -96,7 +91,7 @@ class Thread {
     thread_id_t thread_id_;
 
    public:
-    Id() noexcept : thread_id_() {}
+    Id() noexcept : thread_id_(-1) {}
     explicit Id(thread_id_t id) : thread_id_(id) {}
 
    private:
@@ -139,6 +134,11 @@ inline std::basic_ostream<_CharT, _Traits>& operator<<(
     return out << "Thread::Id of a non-executing thread";
   else
     return out << id.thread_id_;
+}
+
+// Called from a running thread.
+inline Thread::Id GetId() noexcept {
+  return Thread::Id(get_uthread_specific());
 }
 
 }  // namespace rt

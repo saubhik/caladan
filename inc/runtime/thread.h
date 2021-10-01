@@ -12,7 +12,7 @@
 struct thread;
 typedef void (*thread_fn_t)(void *arg);
 typedef struct thread thread_t;
-typedef unsigned int thread_id_t;
+typedef uint64_t thread_id_t;
 
 
 /*
