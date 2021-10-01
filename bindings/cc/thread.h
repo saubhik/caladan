@@ -86,13 +86,15 @@ class Thread {
   // Detaches the thread, indicating it won't be joined in the future.
   void Detach();
 
+  typedef thread_id_t native_handle_type;
+
   // Similar to std::thread::id.
   class Id {
-    thread_id_t thread_id_;
+    native_handle_type thread_id_;
 
    public:
     Id() noexcept : thread_id_(-1) {}
-    explicit Id(thread_id_t id) : thread_id_(id) {}
+    explicit Id(native_handle_type id) : thread_id_(id) {}
 
    private:
     friend class Thread;
