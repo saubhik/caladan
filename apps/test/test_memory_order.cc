@@ -65,6 +65,9 @@ void MainHandler(void *arg) {
   th3.Join();
   th4.Join();
 
+  // Check hardware concurrency.
+  log_info("the hardware concurrency is %d", th1.HardwareConcurrency());
+
   // assert(z.load() != 0);
   // z==0 will never happen
   log_info("the value of z is %d", z.load());

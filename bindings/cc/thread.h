@@ -110,6 +110,9 @@ class Thread {
 
   Thread::Id GetId() const noexcept { return id_; }
 
+  // Similar to std::thread::hardware_concurrency().
+  static unsigned int HardwareConcurrency() noexcept { return nrks; }
+
  private:
   Id id_;
   thread_internal::join_data* join_data_;
