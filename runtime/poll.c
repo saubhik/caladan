@@ -31,6 +31,20 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
 	t->data = data;
 }
 
+void poll_arm(poll_waiter_t *w, struct list_head *sock_event_head,
+	poll_trigger_t *t, int event_type, event_callback_fn cb,
+	void* cb_arg) {
+	if (WARN_ON(t->waiter != NULL))
+		return;
+
+	t->waiter = w;
+	t->triggered = false;
+	t->event_type = event_type;
+	t->cb = cb;
+	t->cb_arg = cb_arg;
+	list_add(sock_event_head,&t->sock_link);
+}
+
 /**
  * poll_disarm - unregisters a trigger with a waiter
  * @t: the trigger to unregister
@@ -72,6 +86,22 @@ unsigned long poll_wait(poll_waiter_t *w)
 		}
 		w->waiting_th = th;
 		thread_park_and_unlock_np(&w->lock);
+	}
+}
+
+void poll_once(poll_waiter_t *w)
+{
+	poll_trigger_t *t;
+
+	while (true) {
+		spin_lock_np(&w->lock);
+		t = list_pop(&w->triggered, poll_trigger_t, link);
+		if (t) {
+			spin_unlock_np(&w->lock);
+			t->cb(t->cb_arg);
+		} else {
+			break;
+		}
 	}
 }
 

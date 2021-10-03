@@ -9,6 +9,8 @@
 #include <runtime/thread.h>
 #include <runtime/sync.h>
 
+typedef void(* event_callback_fn) (void * args);
+
 typedef struct poll_waiter {
 	spinlock_t		lock;
 	struct list_head	triggered;
@@ -17,8 +19,12 @@ typedef struct poll_waiter {
 
 typedef struct poll_trigger {
 	struct list_node	link;
+	struct list_node	sock_link;
 	struct poll_waiter	*waiter;
 	bool			triggered;
+	int			event_type;
+	event_callback_fn	cb;
+	void*			cb_arg;
 	unsigned long		data;
 } poll_trigger_t;
 

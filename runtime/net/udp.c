@@ -44,6 +44,7 @@ static int udp_send_raw(struct mbuf *m, size_t len,
 struct udpconn {
 	struct trans_entry	e;
 	bool			shutdown;
+	bool			non_blocking;
 
 	/* ingress support */
 	spinlock_t		inq_lock;
@@ -62,6 +63,7 @@ struct udpconn {
 
 	struct kref		ref;
 	struct flow_registration		flow;
+	struct list_head			sock_events;
 };
 
 /* handles ingress packets for UDP sockets */
@@ -89,6 +91,18 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 
 	/* wake up a waiter */
 	th = waitq_signal(&c->inq_wq, &c->inq_lock);
+
+	/** if there was no thread waiting for it,
+	 * and the socket is nonblocking, check for
+	 * registered events and trigger them */
+	if (!th && c->non_blocking) {
+		poll_trigger_t *pt;
+		list_for_each(&c->sock_events,pt,sock_link) {
+			if (pt->event_type == 3)
+				poll_trigger(pt->waiter, pt);
+		}
+	}
+
 	spin_unlock_np(&c->inq_lock);
 
 	waitq_signal_finish(th);
@@ -119,6 +133,7 @@ static const struct trans_ops udp_conn_ops = {
 static void udp_init_conn(udpconn_t *c)
 {
 	c->shutdown = false;
+	c->non_blocking = false;
 
 	/* initialize ingress fields */
 	spin_lock_init(&c->inq_lock);
@@ -136,6 +151,7 @@ static void udp_init_conn(udpconn_t *c)
 	waitq_init(&c->outq_wq);
 
 	kref_init(&c->ref);
+	list_head_init(&w->sock_events);
 }
 
 static void udp_finish_release_conn(struct rcu_head *h)
@@ -298,6 +314,13 @@ ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
 	struct mbuf *m;
 
 	spin_lock_np(&c->inq_lock);
+
+	/* if the socket is nonblocking, don't block*/
+	if (mbufq_empty(&c->inq) && !c->inq_err && !c->shutdown &&
+		c->non_blocking) {
+		spin_unlock_np(&c->inq_lock);
+		return 0;
+	}
 
 	/* block until there is an actionable event */
 	while (mbufq_empty(&c->inq) && !c->inq_err && !c->shutdown)
@@ -521,6 +544,17 @@ void udp_close(udpconn_t *c)
 
 	if (free_conn)
 		udp_conn_put(c);
+}
+
+/**
+ * udp_set_nonblocking - set a UDP socket's nonblocking
+ * @c: the socket to set
+ * @block: nonblocking status
+ *
+*/
+void udp_set_nonblocking(udpconn_t *c, bool nonblocking)
+{
+	c->non_blocking = nonblocking;
 }
 
 
