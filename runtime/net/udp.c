@@ -98,7 +98,7 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 	if (!th && c->non_blocking) {
 		poll_trigger_t *pt;
 		list_for_each(&c->sock_events,pt,sock_link) {
-			if (pt->event_type == 3)
+			if (pt->event_type & SEV_READ)
 				poll_trigger(pt->waiter, pt);
 		}
 	}

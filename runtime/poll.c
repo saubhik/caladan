@@ -89,19 +89,27 @@ unsigned long poll_wait(poll_waiter_t *w)
 	}
 }
 
-void poll_once(poll_waiter_t *w)
+/**
+ * poll_cb_once - loops over all triggered events and calls their callbacks
+ * @w: the waiter to wait on
+ */
+
+void poll_cb_once(poll_waiter_t *w)
 {
 	poll_trigger_t *t;
+	int cb_counter = 0;
 
 	while (true) {
 		spin_lock_np(&w->lock);
 		t = list_pop(&w->triggered, poll_trigger_t, link);
-		if (t) {
-			spin_unlock_np(&w->lock);
-			t->cb(t->cb_arg);
-		} else {
+		spin_unlock_np(&w->lock);
+		if (!t)
 			break;
-		}
+		t->cb(t->cb_arg);
+
+		/* don't get blocked in this loop and break */
+		if (cb_counter++ > MAX_AT_ONCE)
+			break;
 	}
 }
 
