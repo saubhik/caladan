@@ -14,21 +14,21 @@ extern "C" {
 namespace rt {
 
 // Force the compiler to access a memory location.
-template<typename T>
+template <typename T>
 T volatile &access_once(T &t) {
   static_assert(std::is_integral<T>::value, "Integral required.");
   return static_cast<T volatile &>(t);
 }
 
 // Force the compiler to read a memory location.
-template<typename T>
+template <typename T>
 T read_once(const T &p) {
   static_assert(std::is_integral<T>::value, "Integral required.");
   return static_cast<const T volatile &>(p);
 }
 
 // Force the compiler to write a memory location.
-template<typename T>
+template <typename T>
 void write_once(T &p, const T &val) {
   static_assert(std::is_integral<T>::value, "Integral required.");
   static_cast<T volatile &>(p) = val;
@@ -41,12 +41,12 @@ class ThreadWaker {
   ~ThreadWaker() { assert(th_ == nullptr); }
 
   // disable copy.
-  ThreadWaker(const ThreadWaker&) = delete;
-  ThreadWaker& operator=(const ThreadWaker&) = delete;
+  ThreadWaker(const ThreadWaker &) = delete;
+  ThreadWaker &operator=(const ThreadWaker &) = delete;
 
   // allow move.
   ThreadWaker(ThreadWaker &&w) : th_(w.th_) { w.th_ = nullptr; }
-  ThreadWaker& operator=(ThreadWaker &&w) {
+  ThreadWaker &operator=(ThreadWaker &&w) {
     th_ = w.th_;
     w.th_ = nullptr;
     return *this;
@@ -79,8 +79,8 @@ class Preempt {
   ~Preempt() {}
 
   // disable move and copy.
-  Preempt(const Preempt&) = delete;
-  Preempt& operator=(const Preempt&) = delete;
+  Preempt(const Preempt &) = delete;
+  Preempt &operator=(const Preempt &) = delete;
 
   // Disables preemption.
   void Lock() { preempt_disable(); }
@@ -146,8 +146,8 @@ class Spin {
  private:
   spinlock_t lock_;
 
-  Spin(const Spin&) = delete;
-  Spin& operator=(const Spin&) = delete;
+  Spin(const Spin &) = delete;
+  Spin &operator=(const Spin &) = delete;
 };
 
 // Pthread-like mutex support.
@@ -174,8 +174,8 @@ class Mutex {
  private:
   mutex_t mu_;
 
-  Mutex(const Mutex&) = delete;
-  Mutex& operator=(const Mutex&) = delete;
+  Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
 };
 
 // RAII lock support (works with Spin, Preempt, and Mutex).
@@ -188,8 +188,8 @@ class ScopedLock {
  private:
   L *const lock_;
 
-  ScopedLock(const ScopedLock&) = delete;
-  ScopedLock& operator=(const ScopedLock&) = delete;
+  ScopedLock(const ScopedLock &) = delete;
+  ScopedLock &operator=(const ScopedLock &) = delete;
 };
 
 using SpinGuard = ScopedLock<Spin>;
@@ -206,8 +206,8 @@ class ScopedLockAndPark {
  private:
   L *const lock_;
 
-  ScopedLockAndPark(const ScopedLockAndPark&) = delete;
-  ScopedLockAndPark& operator=(const ScopedLockAndPark&) = delete;
+  ScopedLockAndPark(const ScopedLockAndPark &) = delete;
+  ScopedLockAndPark &operator=(const ScopedLockAndPark &) = delete;
 };
 
 using SpinGuardAndPark = ScopedLockAndPark<Spin>;
@@ -232,8 +232,8 @@ class CondVar {
  private:
   condvar_t cv_;
 
-  CondVar(const CondVar&) = delete;
-  CondVar& operator=(const CondVar&) = delete;
+  CondVar(const CondVar &) = delete;
+  CondVar &operator=(const CondVar &) = delete;
 };
 
 // Golang-like waitgroup support.
@@ -262,8 +262,8 @@ class WaitGroup {
  private:
   waitgroup_t wg_;
 
-  WaitGroup(const WaitGroup&) = delete;
-  WaitGroup& operator=(const WaitGroup&) = delete;
+  WaitGroup(const WaitGroup &) = delete;
+  WaitGroup &operator=(const WaitGroup &) = delete;
 };
 
 }  // namespace rt

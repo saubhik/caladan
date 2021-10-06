@@ -3,6 +3,21 @@
 namespace rt {
 namespace thread_internal {
 
+// Number of user threads.
+thread_id_t nrus = 0;
+
+join_data::join_data(std::function<void()> &&func)
+    : done_{false}, waiter_{nullptr}, func_{std::move(func)} {
+  spin_lock_init(&lock_);
+  id_ = nrus++;
+}
+
+join_data::join_data(const std::function<void()> &func)
+    : done_{false}, waiter_{nullptr}, func_{func} {
+  spin_lock_init(&lock_);
+  id_ = nrus++;
+}
+
 // A helper to jump from a C function to a C++ std::function.
 void ThreadTrampoline(void *arg) {
   (*static_cast<std::function<void()> *>(arg))();
@@ -13,6 +28,7 @@ void ThreadTrampoline(void *arg) {
 void ThreadTrampolineWithJoin(void *arg) {
   thread_internal::join_data *d =
       static_cast<thread_internal::join_data *>(arg);
+  set_uthread_specific(d->id_);
   d->func_();
   d->func_.~function<void()>();
   spin_lock_np(&d->lock_);
@@ -40,6 +56,7 @@ Thread::Thread(const std::function<void()> &func) {
   if (unlikely(!th)) BUG();
   new (buf) thread_internal::join_data(func);
   join_data_ = buf;
+  id_ = Id(buf->id_);
   thread_ready(th);
 }
 
@@ -51,6 +68,7 @@ Thread::Thread(std::function<void()> &&func) {
   if (unlikely(!th)) BUG();
   new (buf) thread_internal::join_data(std::move(func));
   join_data_ = buf;
+  id_ = Id(buf->id_);
   thread_ready(th);
 }
 

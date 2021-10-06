@@ -12,6 +12,7 @@
 struct thread;
 typedef void (*thread_fn_t)(void *arg);
 typedef struct thread thread_t;
+typedef uint64_t thread_id_t;
 
 
 /*
@@ -28,6 +29,7 @@ extern thread_t *thread_create_with_buf(thread_fn_t fn, void **buf, size_t len);
 
 extern __thread thread_t *__self;
 extern __thread unsigned int kthread_idx;
+extern unsigned int nrks;
 
 static inline unsigned int get_current_affinity(void)
 {
