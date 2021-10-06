@@ -6,9 +6,57 @@ extern "C" {
 #include <base/stddef.h>
 #include <runtime/tcp.h>
 #include <runtime/udp.h>
+#include <runtime/poll.h>
 }
 
 namespace rt {
+
+class EventLoop {
+ public:
+  static EventLoop *CreateWaiter() {
+    poll_waiter_t *w;
+    int ret = create_waiter(&w);
+    if (ret) return nullptr;
+    return new EventLoop(w);
+  }
+
+  void AddEvent(Event* e, UdpConn *s, event_callback_fn cb, void* args) {
+    poll_arm(w, s->EventList(), e->GetTrigger(), SEV_READ, cb, args);
+  }
+
+  void LoopCbOnce() {
+    poll_cb_once(w_);
+  }
+ private:
+  EventLoop(poll_waiter_t *w) : w_(w) {}
+
+  // disable move and copy.
+  EventLoop(const EventLoop&) = delete;
+  EventLoop& operator=(const EventLoop&) = delete;
+
+  poll_waiter_t *w_;
+};
+
+class Event {
+ public:
+  static Event *CreateEvent() {
+    poll_trigger_t *t;
+    int ret = create_trigger(&t);
+    if (ret) return nullptr;
+    return new Event(t);
+  }
+
+  poll_trigger_t *GetTrigger() { return t_; }
+
+ private:
+  Event(poll_trigger_t *t) : t_(t) {}
+
+  // disable move and copy.
+  Event(const Event&) = delete;
+  Event& operator=(const Event&) = delete;
+
+  poll_trigger_t *t_;
+};
 
 class NetConn {
  public:
@@ -46,6 +94,9 @@ class UdpConn : public NetConn {
     return static_cast<size_t>(udp_payload_size);
   }
 
+  // Gets head of event list
+  struct list_head *EventList() {return &c_->sock_events; }
+
   // Gets the local UDP address.
   netaddr LocalAddr() const { return udp_local_addr(c_); }
   // Gets the remote UDP address.
@@ -74,6 +125,11 @@ class UdpConn : public NetConn {
 
   // Shutdown the socket (no more receives).
   void Shutdown() { udp_shutdown(c_); }
+
+  // Set the socket's nonblocking state
+  void SetNonblocking (bool nonblocking) {
+    udp_set_nonblocking(c_, nonblocking);
+  }
 
  private:
   UdpConn(udpconn_t *c) : c_(c) {}

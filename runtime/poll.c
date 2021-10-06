@@ -16,6 +16,37 @@ void poll_init(poll_waiter_t *w)
 }
 
 /**
+ * create_waiter - allocate memory for waiter and initialize it
+ * @w_out: a pointer to store the waiter (if successful)
+ */
+int create_waiter(poll_waiter_t **w_out)
+{
+	poll_waiter_t *w;
+	w = smalloc(sizeof(*w));
+	if (!w)
+		return -ENOMEM;
+	poll_init(w);
+	*w_out = w;
+	return 0;
+}
+
+/**
+ * create_trigger - allocate memory for trigger
+ * @t_out: a pointer to store the trigger (if successful)
+ */
+int create_trigger(poll_trigger_t **t_out)
+{
+	poll_trigger_t *t;
+	t = smalloc(sizeof(*t));
+	if (!t)
+		return -ENOMEM;
+
+	poll_trigger_init(t);
+	*t_out = t;
+	return 0;
+}
+
+/**
  * poll_arm - registers a trigger with a waiter
  * @w: the waiter to register with
  * @t: the trigger to register
@@ -93,7 +124,6 @@ unsigned long poll_wait(poll_waiter_t *w)
  * poll_cb_once - loops over all triggered events and calls their callbacks
  * @w: the waiter to wait on
  */
-
 void poll_cb_once(poll_waiter_t *w)
 {
 	poll_trigger_t *t;
