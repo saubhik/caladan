@@ -6,8 +6,10 @@ extern "C" {
 #include <base/assert.h>
 #include <base/thread.h>
 #include <runtime/sync.h>
+#include <runtime/timer.h>
 }
 
+#include <chrono>
 #include <functional>
 
 namespace rt {
@@ -141,9 +143,18 @@ inline std::basic_ostream<_CharT, _Traits>& operator<<(
     return out << id.thread_id_;
 }
 
-// Called from a running thread.
+// Called from a running thread. Similar to std::this_thread::get_id()
 inline Thread::Id GetId() noexcept {
   return Thread::Id(get_uthread_specific());
+}
+
+// Called from a running thread. Similar to std::this_thread::sleep_for
+template <typename _Rep, typename _Period>
+inline void SleepFor(const std::chrono::duration<_Rep, _Period>& time) {
+  if (time <= time.zero()) return;
+  auto micros =
+      std::chrono::duration_cast<std::chrono::microseconds>(time).count();
+  timer_sleep(static_cast<uint64_t>(micros));
 }
 
 }  // namespace rt

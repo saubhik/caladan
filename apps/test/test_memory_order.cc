@@ -23,6 +23,8 @@ std::atomic<int> z = ATOMIC_VAR_INIT(0);
 
 // Check rt::GetId() works.
 void PrintId() {
+  // Check rt::SleepFor() works.
+  rt::SleepFor(std::chrono::milliseconds{5 * rt::kMilliseconds});
   std::stringstream msg;
   msg << "My ID is " << rt::GetId() << "\n";
   std::cout << msg.str();
