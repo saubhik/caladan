@@ -11,6 +11,7 @@
 #include <runtime/sync.h>
 #include <runtime/thread.h>
 #include <runtime/udp.h>
+#include <runtime/poll.h>
 
 #include "defs.h"
 #include "waitq.h"
@@ -151,7 +152,7 @@ static void udp_init_conn(udpconn_t *c)
 	waitq_init(&c->outq_wq);
 
 	kref_init(&c->ref);
-	list_head_init(&w->sock_events);
+	list_head_init(&c->sock_events);
 }
 
 static void udp_finish_release_conn(struct rcu_head *h)
@@ -557,6 +558,10 @@ void udp_set_nonblocking(udpconn_t *c, bool nonblocking)
 	c->non_blocking = nonblocking;
 }
 
+struct list_head *udp_get_triggers(udpconn_t *c)
+{
+	return &c->sock_events;
+}
 
 /*
  * Parallel API

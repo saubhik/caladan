@@ -3,6 +3,7 @@
  */
 
 #include <runtime/poll.h>
+#include <runtime/smalloc.h>
 
 /**
  * poll_init - initializes a polling waiter object
@@ -62,7 +63,7 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
 	t->data = data;
 }
 
-void poll_arm(poll_waiter_t *w, struct list_head *sock_event_head,
+void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
 	poll_trigger_t *t, int event_type, event_callback_fn cb,
 	void* cb_arg) {
 	if (WARN_ON(t->waiter != NULL))

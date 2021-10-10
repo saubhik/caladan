@@ -11,33 +11,8 @@ extern "C" {
 
 namespace rt {
 
-class EventLoop {
- public:
-  static EventLoop *CreateWaiter() {
-    poll_waiter_t *w;
-    int ret = create_waiter(&w);
-    if (ret) return nullptr;
-    return new EventLoop(w);
-  }
-
-  void AddEvent(Event* e, UdpConn *s, event_callback_fn cb, void* args) {
-    poll_arm(w, s->EventList(), e->GetTrigger(), SEV_READ, cb, args);
-  }
-
-  void LoopCbOnce() {
-    poll_cb_once(w_);
-  }
- private:
-  EventLoop(poll_waiter_t *w) : w_(w) {}
-
-  // disable move and copy.
-  EventLoop(const EventLoop&) = delete;
-  EventLoop& operator=(const EventLoop&) = delete;
-
-  poll_waiter_t *w_;
-};
-
 class Event {
+  friend class EventLoop;
  public:
   static Event *CreateEvent() {
     poll_trigger_t *t;
@@ -67,6 +42,7 @@ class NetConn {
 
 // UDP Connections.
 class UdpConn : public NetConn {
+  friend class EventLoop;
  public:
   ~UdpConn() { udp_close(c_); }
 
@@ -95,7 +71,7 @@ class UdpConn : public NetConn {
   }
 
   // Gets head of event list
-  struct list_head *EventList() {return &c_->sock_events; }
+  struct list_head *EventList() { return udp_get_triggers(c_); }
 
   // Gets the local UDP address.
   netaddr LocalAddr() const { return udp_local_addr(c_); }
@@ -139,6 +115,32 @@ class UdpConn : public NetConn {
   UdpConn& operator=(const UdpConn&) = delete;
 
   udpconn_t *c_;
+};
+
+class EventLoop {
+ public:
+  static EventLoop *CreateWaiter() {
+    poll_waiter_t *w;
+    int ret = create_waiter(&w);
+    if (ret) return nullptr;
+    return new EventLoop(w);
+  }
+
+  void AddEvent(Event* e, UdpConn *s, event_callback_fn cb, void* args) {
+    poll_arm_w_sock(w_, s->EventList(), e->GetTrigger(), SEV_READ, cb, args);
+  }
+
+  void LoopCbOnce() {
+    poll_cb_once(w_);
+  }
+ private:
+  EventLoop(poll_waiter_t *w) : w_(w) {}
+
+  // disable move and copy.
+  EventLoop(const EventLoop&) = delete;
+  EventLoop& operator=(const EventLoop&) = delete;
+
+  poll_waiter_t *w_;
 };
 
 // TCP connections.
