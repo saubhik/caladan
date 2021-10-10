@@ -46,9 +46,15 @@ void ServerHandler(void *arg) {
   while (true) {
     int pp;
     netaddr raddr1;
-    ssize_t ret = q->ReadiFrom(&pp, sizeof(pp), &raddr1);
+    ssize_t ret = q->ReadFrom(&pp, sizeof(pp), &raddr1);
+    if (ret != static_cast<ssize_t>(sizeof(pp))) {
+       if (ret == 0 || ret < 0) break;
+         panic("read failed, ret = %ld", ret);
+    }
     pp++;
-    ret = q->WriteTo(p, sizeof(int),&raddr1);
+    ret = q->WriteTo(&pp, sizeof(int),&raddr1);
+    if (ret != static_cast<ssize_t>(sizeof(int)))
+      panic("write failed, ret = %ld", ret);
   }
 }
 
@@ -61,7 +67,6 @@ struct work_unit {
 
 void ClientWorker(
     rt::UdpConn *c, rt::WaitGroup *starter) {
-  constexpr int kBatchSize = 32;
   std::vector<time_point<steady_clock>> timings;
 
   // Start the receiver thread.
@@ -83,11 +88,9 @@ void ClientWorker(
   starter->Wait();
 
   int p = 100;
-  int j = 0;
-  auto wsize = 10;
 
-  for (unsigned int i = 0; i < wsize; ++i) {
-    ssize_t ret = c->Write(p, sizeof(int));
+  for (unsigned int i = 0; i < 10; ++i) {
+    ssize_t ret = c->Write(&p, sizeof(int));
     if (ret != static_cast<ssize_t>(sizeof(int)))
       panic("write failed, ret = %ld", ret);
 
@@ -95,7 +98,7 @@ void ClientWorker(
     rt::Sleep(1 * rt::kSeconds);
   }
 
-  c->Shutdown(SHUT_RDWR);
+  c->Shutdown();
   th.Join();
 }
 
@@ -104,7 +107,7 @@ void RunExperiment(
   // Create one TCP connection per thread.
   std::vector<std::unique_ptr<rt::UdpConn>> conns;
   for (int i = 0; i < threads_l; ++i) {
-    std::unique_ptr<rt::UdpConn> outc(rt::UdpConn::Dial({0, kNetbenchPort2}, raddr));
+    std::unique_ptr<rt::UdpConn> outc(rt::UdpConn::Dial({0, 0}, raddr));
     if (unlikely(outc == nullptr)) panic("couldn't connect to raddr.");
     conns.emplace_back(std::move(outc));
   }
@@ -122,30 +125,49 @@ void RunExperiment(
   starter.Done();
   starter.Wait();
 
-
   // Wait for the workers to finish.
   for (auto &t : th) t.Join();
 
   // Close the connections.
-  for (auto &c : conns) c->Shutdown(SHUT_RDWR);
+  for (auto &c : conns) c->Shutdown();
 
 }
 
 
-void SteadyStateExperiment(int threads_l, double offered_rps) {
+void SteadyStateExperiment(int threads_l) {
   double rps, cpu_usage;
   RunExperiment(threads_l, &rps, &cpu_usage);
 }
 
 void ClientHandler(void *arg) {
-  SteadyStateExperiment(threads, i);
+  SteadyStateExperiment(threads);
+}
+
+int StringToAddr(const char *str, uint32_t *addr) {
+  uint8_t a, b, c, d;
+
+  if (sscanf(str, "%hhu.%hhu.%hhu.%hhu", &a, &b, &c, &d) != 4) return -EINVAL;
+
+  *addr = MAKE_IP_ADDR(a, b, c, d);
+  return 0;
+}
+
+std::vector<std::string> split(const std::string &text, char sep) {
+  std::vector<std::string> tokens;
+  std::string::size_type start = 0, end = 0;
+  while ((end = text.find(sep, start)) != std::string::npos) {
+    tokens.push_back(text.substr(start, end - start));
+    start = end + 1;
+  }
+  tokens.push_back(text.substr(start));
+  return tokens;
 }
 
 
 }  // anonymous namespace
 
 int main(int argc, char *argv[]) {
-  int i, ret;
+  int ret;
 
   if (argc < 3) {
     std::cerr << "usage: [cfg_file] [cmd] ..." << std::endl;
