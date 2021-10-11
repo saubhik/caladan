@@ -38,38 +38,23 @@ netaddr raddr;
 constexpr uint64_t kNetbenchPort = 8001;
 constexpr uint64_t kNetbenchPort2 = 8002;
 
-void receive_callback(void * q) {
-  int pp;
-  netaddr raddr1;
-  ssize_t ret = reinterpret_cast<rt::UdpConn*>(q)->ReadFrom(&pp,
-                                                  sizeof(pp), &raddr1);
-  if (ret != static_cast<ssize_t>(sizeof(pp))) {
-    printf("reading nonblocked in callback\n");
-    return;
-  }
-  printf("callback made\n");
-  pp++;
-  ret = reinterpret_cast<rt::UdpConn*>(q)->WriteTo(&pp, sizeof(int),&raddr1);
-  if (ret != static_cast<ssize_t>(sizeof(int)))
-    panic("write failed, ret = %ld", ret);
-  return;
-}
-
 void ServerHandler(void *arg) {
-  rt::UdpConn* q = rt::UdpConn::Listen({0, kNetbenchPort});
+  std::unique_ptr<rt::UdpConn> q(
+      rt::UdpConn::Listen({0, kNetbenchPort}));
   if (q == nullptr) panic("couldn't listen for connections");
 
-  rt::EventLoop* evl = rt::EventLoop::CreateWaiter();
-  if (evl == nullptr) panic("couldn't listen for connections");
-
-  rt::Event* evt = rt::Event::CreateEvent();
-  if (evt == nullptr) panic("couldn't listen for connections");
-
-  evl->AddEvent(evt, q, &receive_callback, q);
-  q->SetNonblocking(true);
-
   while (true) {
-    evl->LoopCbOnce();
+    int pp;
+    netaddr raddr1;
+    ssize_t ret = q->ReadFrom(&pp, sizeof(pp), &raddr1);
+    if (ret != static_cast<ssize_t>(sizeof(pp))) {
+       if (ret == 0 || ret < 0) break;
+         panic("read failed, ret = %ld", ret);
+    }
+    pp++;
+    ret = q->WriteTo(&pp, sizeof(int),&raddr1);
+    if (ret != static_cast<ssize_t>(sizeof(int)))
+      panic("write failed, ret = %ld", ret);
   }
 }
 
@@ -166,18 +151,6 @@ int StringToAddr(const char *str, uint32_t *addr) {
   *addr = MAKE_IP_ADDR(a, b, c, d);
   return 0;
 }
-
-std::vector<std::string> split(const std::string &text, char sep) {
-  std::vector<std::string> tokens;
-  std::string::size_type start = 0, end = 0;
-  while ((end = text.find(sep, start)) != std::string::npos) {
-    tokens.push_back(text.substr(start, end - start));
-    start = end + 1;
-  }
-  tokens.push_back(text.substr(start));
-  return tokens;
-}
-
 
 }  // anonymous namespace
 

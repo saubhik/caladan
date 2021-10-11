@@ -133,9 +133,14 @@ void poll_cb_once(poll_waiter_t *w)
 	while (true) {
 		spin_lock_np(&w->lock);
 		t = list_pop(&w->triggered, poll_trigger_t, link);
-		spin_unlock_np(&w->lock);
-		if (!t)
+
+		if (!t) {
+			spin_unlock_np(&w->lock);
 			break;
+		}
+
+		t->triggered = false;
+		spin_unlock_np(&w->lock);
 		t->cb(t->cb_arg);
 
 		/* don't get blocked in this loop and break */
