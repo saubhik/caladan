@@ -142,6 +142,9 @@ void poll_cb_once(poll_waiter_t *w)
 		t->triggered = false;
 		spin_unlock_np(&w->lock);
 		t->cb(t->cb_arg);
+		// TODO: maybe fire the trigger again if the socket's queue
+		// wasn't completely drained? For now, the callback has to drain
+		// the queue because the the evented is no longer triggered.
 
 		/* don't get blocked in this loop and break */
 		if (cb_counter++ > MAX_AT_ONCE)

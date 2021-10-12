@@ -41,18 +41,23 @@ constexpr uint64_t kNetbenchPort2 = 8002;
 void receive_callback(void * q) {
   int pp;
   netaddr raddr1;
-  ssize_t ret = reinterpret_cast<rt::UdpConn*>(q)->ReadFrom(&pp,
-                                                  sizeof(pp), &raddr1);
-  if (ret != static_cast<ssize_t>(sizeof(pp))) {
-    printf("reading nonblocked in callback\n");
-    return;
-  }
   printf("callback made\n");
-  pp++;
-  ret = reinterpret_cast<rt::UdpConn*>(q)->WriteTo(&pp, sizeof(int),&raddr1);
-  if (ret != static_cast<ssize_t>(sizeof(int)))
-    panic("write failed, ret = %ld", ret);
-  return;
+
+  // A single callback might be made after multiple triggers,
+  // make sure to drain the queue
+  while (true) {
+    ssize_t ret = reinterpret_cast<rt::UdpConn*>(q)->ReadFrom(&pp,
+                                                  sizeof(pp), &raddr1);
+    if (ret != static_cast<ssize_t>(sizeof(pp))) {
+      printf("reading nonblocked in callback\n");
+      return;
+    }
+    printf("still in callback\n");
+    pp++;
+    ret = reinterpret_cast<rt::UdpConn*>(q)->WriteTo(&pp, sizeof(int),&raddr1);
+    if (ret != static_cast<ssize_t>(sizeof(int)))
+      panic("write failed, ret = %ld", ret);
+  }
 }
 
 void ServerHandler(void *arg) {
