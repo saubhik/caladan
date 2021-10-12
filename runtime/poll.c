@@ -63,6 +63,14 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
 	t->data = data;
 }
 
+/**
+ * poll_arm_w_sock -  register a trigger with a waiter and a socket
+ * @w: the waiter to register with
+ * @sock_event_head: the list head of triggers associated with the socket
+ * @t: the trigger to register
+ * @cb: the callback called with the trigger fires
+ * @cb_arg: the argument passed to the callback
+ */
 void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
 	poll_trigger_t *t, int event_type, event_callback_fn cb,
 	void* cb_arg) {
