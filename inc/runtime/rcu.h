@@ -32,7 +32,7 @@ static inline void rcu_read_lock(void)
 static inline void rcu_read_unlock(void)
 {
 #ifdef DEBUG
-	assert(rcu_read_lock_held());
+	sh_assert(rcu_read_lock_held());
 	rcu_read_count--;
 #endif /* DEBUG */
 	preempt_enable();
@@ -70,7 +70,7 @@ static inline void rcu_read_unlock(void)
 #define rcu_dereference(p)				\
 	({						\
 		rcu_check_type(p);			\
-		assert(rcu_read_lock_held());		\
+		sh_assert(rcu_read_lock_held());		\
 		load_consume((typeof(*(p)) __force **)(&p));\
 	})
 
@@ -90,7 +90,7 @@ static inline void rcu_read_unlock(void)
 #define rcu_dereference_protected(p, c)			\
 	({						\
 		rcu_check_type(p);			\
-		assert(rcu_read_lock_held() || !!(c));	\
+		sh_assert(rcu_read_lock_held() || !!(c));	\
 		load_consume((typeof(*(p)) __force **)(&p));\
 	})
 
@@ -102,7 +102,7 @@ static inline void rcu_read_unlock(void)
 #define rcu_assign_pointer(p, v)			\
 	do {						\
 		rcu_check_type(p);			\
-		store_release(&p, RCU_INITIALIZER(v));	\
+		sh_store_release(&p, RCU_INITIALIZER(v));	\
 	} while (0)
 
 struct rcu_head;

@@ -95,7 +95,7 @@ static ssize_t crpc_send_raw(struct cnc_session *s,
 	ret = tcp_writev_full(s->cmn.c, vec, 2);
 	if (unlikely(ret < 0))
 		return ret;
-	assert(ret == sizeof(chdr) + len);
+	sh_assert(ret == sizeof(chdr) + len);
 	s->req_tx_++;
 
 	return len;
@@ -131,7 +131,7 @@ again:
 	ret = tcp_read_full(s->cmn.c, &shdr, sizeof(shdr));
 	if (unlikely(ret <= 0))
 		return ret;
-	assert(ret == sizeof(shdr));
+	sh_assert(ret == sizeof(shdr));
 
 	/* parse the server header */
 	if (unlikely(shdr.magic != NC_RESP_MAGIC)) {
@@ -153,7 +153,7 @@ again:
 		ret = tcp_read_full(s->cmn.c, buf, shdr.len);
 		if (unlikely(ret <= 0))
 			return ret;
-		assert(ret == shdr.len);
+		sh_assert(ret == shdr.len);
 		s->resp_rx_++;
 
 #if CNC_TRACK_FLOW

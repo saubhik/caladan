@@ -61,8 +61,8 @@ static void tcp_rx_append_text(tcpconn_t *c, struct mbuf *m)
 	assert_spin_lock_held(&c->lock);
 
 	/* verify assumptions enforced by acceptability testing */
-	assert(wraps_lte(m->seg_seq, c->pcb.rcv_nxt));
-	assert(wraps_gt(m->seg_end, c->pcb.rcv_nxt));
+	sh_assert(wraps_lte(m->seg_seq, c->pcb.rcv_nxt));
+	sh_assert(wraps_gt(m->seg_end, c->pcb.rcv_nxt));
 
 	/* does the next receive octet clip the head of the text? */
 	if (wraps_lt(m->seg_seq, c->pcb.rcv_nxt)) {
@@ -79,10 +79,10 @@ static void tcp_rx_append_text(tcpconn_t *c, struct mbuf *m)
 	}
 
 	/* enqueue the text */
-	assert(c->pcb.rcv_wnd >= m->seg_end - m->seg_seq);
+	sh_assert(c->pcb.rcv_wnd >= m->seg_end - m->seg_seq);
 	nxt_wnd = (uint64_t)m->seg_end;
 	nxt_wnd |= ((uint64_t)(c->pcb.rcv_wnd - (m->seg_end - m->seg_seq)) << 32);
-	store_release(&c->pcb.rcv_nxt_wnd, nxt_wnd);
+	sh_store_release(&c->pcb.rcv_nxt_wnd, nxt_wnd);
 	list_add_tail(&c->rxq, &m->link);
 }
 
@@ -175,7 +175,7 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 	bool do_ack = false, slow_path;
 
 	list_head_init(&q);
-	snd_nxt = load_acquire(&c->pcb.snd_nxt);
+	snd_nxt = sh_load_acquire(&c->pcb.snd_nxt);
 
 	/* find header offsets */
 	iphdr = mbuf_network_hdr(m, *iphdr);
@@ -257,7 +257,7 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 
 	nxt_wnd = (uint64_t)m->seg_end;
 	nxt_wnd |= ((uint64_t)(c->pcb.rcv_wnd - len) << 32);
-	store_release(&c->pcb.rcv_nxt_wnd, nxt_wnd);
+	sh_store_release(&c->pcb.rcv_nxt_wnd, nxt_wnd);
 
 	/* should we wake a thread */
 	if (!list_empty(&c->rxq) || (tcphdr->flags & TCP_PUSH) > 0)
@@ -543,8 +543,8 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 #endif
 
 		if (wake) {
-			assert(!list_empty(&c->rxq));
-			assert(do_drop == false);
+			sh_assert(!list_empty(&c->rxq));
+			sh_assert(do_drop == false);
 			rx_th = waitq_signal(&c->rx_wq, &c->lock);
 		}
 		if (++c->acks_delayed_cnt >= 2) {
@@ -559,11 +559,11 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 	/* step 8 - FIN */
 	if (likely(!fin))
 		goto done;
-	assert(c->pcb.state != TCP_STATE_SYN_RECEIVED);
+	sh_assert(c->pcb.state != TCP_STATE_SYN_RECEIVED);
 	if (c->pcb.state == TCP_STATE_ESTABLISHED) {
 		tcp_conn_set_state(c, TCP_STATE_CLOSE_WAIT);
 	} else if (c->pcb.state == TCP_STATE_FIN_WAIT1) {
-		assert(c->pcb.snd_una != snd_nxt);
+		sh_assert(c->pcb.snd_una != snd_nxt);
 		tcp_conn_set_state(c, TCP_STATE_CLOSING);
 	} else if (c->pcb.state == TCP_STATE_FIN_WAIT2) {
 		c->time_wait_ts = microtime();

@@ -60,7 +60,7 @@ int parsec_barrier_init(parsec_barrier_t *barrier, const parsec_barrierattr_t *a
 #endif //DEBUG
 
   //check assumptions used in header
-  assert(PARSEC_BARRIER_SERIAL_THREAD != 0);
+  sh_assert(PARSEC_BARRIER_SERIAL_THREAD != 0);
 
   //check arguments
   if(barrier==NULL) return EINVAL;
@@ -81,7 +81,7 @@ int parsec_barrier_init(parsec_barrier_t *barrier, const parsec_barrierattr_t *a
 int parsec_barrier_destroy(parsec_barrier_t *barrier) {
   int rv;
 
-  assert(barrier!=NULL);
+  sh_assert(barrier!=NULL);
 
   rv = pthread_mutex_destroy(&barrier->mutex);
   if(rv != 0) return rv;
@@ -237,8 +237,8 @@ void *bugger_thread(void *arg) {
   int tid = *(int *)arg;
   int i;
 
-  assert(tid>=0 && tid<NBUGGERS);
-  assert(result_bugger[tid]==0);
+  sh_assert(tid>=0 && tid<NBUGGERS);
+  sh_assert(result_bugger[tid]==0);
 
   //do something simple to occupy the processor and yield to cause unexpected delays
   while(!terminate_bugger_threads) {
@@ -256,8 +256,8 @@ void *stress_thread(void *arg) {
   int tid = *(int *)arg;
   int i;
 
-  assert(tid>=0 && tid<NTHREADS);
-  assert(result_worker[tid]==0);
+  sh_assert(tid>=0 && tid<NTHREADS);
+  sh_assert(result_worker[tid]==0);
 
   //Simple barrier stress test
   for(i=0; i<WORK_UNIT_WORKER; i++) {
@@ -273,8 +273,8 @@ void *counter_thread(void *arg) {
   int tid = *(int *)arg;
   int i;
 
-  assert(tid>=0 && tid<NTHREADS);
-  assert(result_worker[tid]==0);
+  sh_assert(tid>=0 && tid<NTHREADS);
+  sh_assert(result_worker[tid]==0);
 
   //Increment a set of counters in parallel, pseudo-randomly pick which counter to increment
   //All counter values are always the same after each step, unless there's a race condition

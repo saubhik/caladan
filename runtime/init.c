@@ -114,7 +114,7 @@ static int runtime_init_thread(void)
 	}
 
 	ret = run_init_handlers("per-thread", thread_init_handlers,
-				 ARRAY_SIZE(thread_init_handlers));
+				 SH_ARRAY_SIZE(thread_init_handlers));
 	if (ret || perthread_init_hook == NULL)
 		return ret;
 
@@ -179,7 +179,7 @@ int runtime_init(const char *cfgpath, thread_fn_t main_fn, void *arg)
 	pthread_barrier_init(&init_barrier, NULL, maxks);
 
 	ret = run_init_handlers("global", global_init_handlers,
-				ARRAY_SIZE(global_init_handlers));
+				SH_ARRAY_SIZE(global_init_handlers));
 	if (ret)
 		return ret;
 
@@ -214,7 +214,7 @@ int runtime_init(const char *cfgpath, thread_fn_t main_fn, void *arg)
 	BUG_ON(ret);
 
 	ret = run_init_handlers("late", late_init_handlers,
-				ARRAY_SIZE(late_init_handlers));
+				SH_ARRAY_SIZE(late_init_handlers));
 	BUG_ON(ret);
 
 	if (late_init_hook) {

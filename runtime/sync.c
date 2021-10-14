@@ -165,7 +165,7 @@ void rwmutex_unlock(rwmutex_t *m)
 	list_head_init(&tmp);
 
 	spin_lock_np(&m->waiter_lock);
-	assert(m->count != 0);
+	sh_assert(m->count != 0);
 	if (m->count < 0)
 		m->count = 0;
 	else

@@ -113,7 +113,7 @@ struct list_node *list_check_node(const struct list_node *n,
  * Explicit initializer for an empty list.
  *
  * See also:
- *	LIST_HEAD, list_head_init()
+ *	SH_LIST_HEAD, list_head_init()
  *
  * Example:
  *	static struct list_head my_list = LIST_HEAD_INIT(my_list);
@@ -121,19 +121,19 @@ struct list_node *list_check_node(const struct list_node *n,
 #define LIST_HEAD_INIT(name) { { &name.n, &name.n } }
 
 /**
- * LIST_HEAD - define and initialize an empty list_head
+ * SH_LIST_HEAD - define and initialize an empty list_head
  * @name: the name of the list.
  *
- * The LIST_HEAD macro defines a list_head and initializes it to an empty
+ * The SH_LIST_HEAD macro defines a list_head and initializes it to an empty
  * list.  It can be prepended by "static" to define a static list_head.
  *
  * See also:
  *	LIST_HEAD_INIT, list_head_init()
  *
  * Example:
- *	static LIST_HEAD(my_global_list);
+ *	static SH_LIST_HEAD(my_global_list);
  */
-#define LIST_HEAD(name) \
+#define SH_LIST_HEAD(name) \
 	struct list_head name = LIST_HEAD_INIT(name)
 
 /**
@@ -220,7 +220,7 @@ static inline void list_add_before(struct list_node *next, struct list_node *n)
  * If the list is empty, returns true.
  *
  * Example:
- *	assert(list_empty(&parent->children) == (parent->num_children == 0));
+ *	sh_assert(list_empty(&parent->children) == (parent->num_children == 0));
  */
 static inline bool list_empty(const struct list_head *h)
 {
@@ -286,9 +286,9 @@ static inline void list_del_from(struct list_head *h, struct list_node *n)
 		/* Thorough check: make sure it was in list! */
 		struct list_node *i;
 		for (i = h->n.next; i != n; i = i->next)
-			assert(i != &h->n);
+			sh_assert(i != &h->n);
 	}
-	assert(!list_empty(h));
+	sh_assert(!list_empty(h));
 #endif /* CCAN_LIST_DEBUG */
 
 	/* Quick test that catches a surprising number of bugs. */
@@ -490,7 +490,7 @@ static inline const void *list_tail_(const struct list_head *h, size_t off)
  *	struct list_head adopter;
  *
  *	list_append_list(&adopter, &parent->children);
- *	assert(list_empty(&parent->children));
+ *	sh_assert(list_empty(&parent->children));
  *	parent->num_children = 0;
  */
 static inline void list_append_list(struct list_head *to,
@@ -520,7 +520,7 @@ static inline void list_append_list(struct list_head *to,
  *
  * Example:
  *	list_prepend_list(&adopter, &parent->children);
- *	assert(list_empty(&parent->children));
+ *	sh_assert(list_empty(&parent->children));
  *	parent->num_children = 0;
  */
 static inline void list_prepend_list(struct list_head *to,

@@ -156,8 +156,8 @@ int directpath_init_thread(void)
 
 static DEFINE_SPINLOCK(flow_worker_lock);
 static thread_t *flow_worker_th;
-static LIST_HEAD(flow_to_register);
-static LIST_HEAD(flow_to_deregister);
+static SH_LIST_HEAD(flow_to_register);
+static SH_LIST_HEAD(flow_to_deregister);
 
 static void flow_registration_worker(void *arg)
 {

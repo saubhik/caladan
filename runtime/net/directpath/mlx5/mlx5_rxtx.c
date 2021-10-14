@@ -27,7 +27,7 @@ static int mlx5_refill_rxqueue(struct mlx5_rxq *vq, int nrdesc)
 
 	struct mlx5dv_rwq *wq = &vq->rx_wq_dv;
 
-	assert(wraps_lte(nrdesc + vq->wq_head, vq->consumer_idx + wq->wqe_cnt));
+	sh_assert(wraps_lte(nrdesc + vq->wq_head, vq->consumer_idx + wq->wqe_cnt));
 
 	preempt_disable();
 
@@ -77,7 +77,7 @@ static int mlx5_gather_completions(struct mbuf **mbufs, struct mlx5_txq *v, unsi
 		BUG_ON(mlx5_get_cqe_format(cqe) == 0x3);
 
 		wqe_idx = be16toh(cqe->wqe_counter) & (v->tx_qp_dv.sq.wqe_cnt - 1);
-		mbufs[compl_cnt] = load_acquire(&v->buffers[wqe_idx]);
+		mbufs[compl_cnt] = sh_load_acquire(&v->buffers[wqe_idx]);
 	}
 
 	cq->dbrec[0] = htobe32(v->cq_head & 0xffffff);
@@ -132,7 +132,7 @@ int mlx5_transmit_one(struct mbuf *m)
 	dpseg->addr = htobe64((uint64_t)mbuf_data(m));
 
 	/* record buffer */
-	store_release(&v->buffers[v->sq_head & (v->tx_qp_dv.sq.wqe_cnt - 1)], m);
+	sh_store_release(&v->buffers[v->sq_head & (v->tx_qp_dv.sq.wqe_cnt - 1)], m);
 	v->sq_head++;
 
 	/* write doorbell record */

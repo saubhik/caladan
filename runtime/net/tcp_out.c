@@ -35,7 +35,7 @@ tcp_push_tcphdr(struct mbuf *m, tcpconn_t *c, uint8_t flags,
 		uint8_t off, uint16_t l4len)
 {
 	struct tcp_hdr *tcphdr;
-	uint64_t rcv_nxt_wnd = load_acquire(&c->pcb.rcv_nxt_wnd);
+	uint64_t rcv_nxt_wnd = sh_load_acquire(&c->pcb.rcv_nxt_wnd);
 	tcp_seq ack = c->tx_last_ack = (uint32_t)rcv_nxt_wnd;
 	uint32_t win = c->tx_last_win = rcv_nxt_wnd >> 32;
 
@@ -148,7 +148,7 @@ int tcp_tx_ack(tcpconn_t *c)
 		return -ENOMEM;
 
 	m->txflags = OLFLAG_TCP_CHKSUM;
-	m->seg_seq = load_acquire(&c->pcb.snd_nxt);
+	m->seg_seq = sh_load_acquire(&c->pcb.snd_nxt);
 	tcp_push_tcphdr(m, c, TCP_ACK, 5, 0);
 
 	/* transmit packet */
@@ -179,7 +179,7 @@ int tcp_tx_probe_window(tcpconn_t *c)
 		return -ENOMEM;
 
 	m->txflags = OLFLAG_TCP_CHKSUM;
-	m->seg_seq = load_acquire(&c->pcb.snd_una) - 1;
+	m->seg_seq = sh_load_acquire(&c->pcb.snd_una) - 1;
 	tcp_push_tcphdr(m, c, TCP_ACK, 5, 0);
 
 	/* transmit packet */
@@ -243,7 +243,7 @@ int tcp_tx_ctl(tcpconn_t *c, uint8_t flags, const struct tcp_options *opts)
 	if (opts)
 		ret = tcp_push_options(m, opts);
 	tcp_push_tcphdr(m, c, flags, 5 + ret, 0);
-	store_release(&c->pcb.snd_nxt, c->pcb.snd_nxt + 1);
+	sh_store_release(&c->pcb.snd_nxt, c->pcb.snd_nxt + 1);
 	list_add_tail(&c->txq, &m->link);
 	m->timestamp = microtime();
 	atomic_write(&m->ref, 2);
@@ -282,8 +282,8 @@ ssize_t tcp_tx_send(tcpconn_t *c, const void *buf, size_t len, bool push)
 	size_t seglen;
 	uint32_t mss = c->pcb.snd_mss;
 
-	assert(c->pcb.state >= TCP_STATE_ESTABLISHED);
-	assert((c->tx_exclusive == true) || spin_lock_held(&c->lock));
+	sh_assert(c->pcb.state >= TCP_STATE_ESTABLISHED);
+	sh_assert((c->tx_exclusive == true) || spin_lock_held(&c->lock));
 
 	pos = buf;
 	end = pos + len;
@@ -311,7 +311,7 @@ ssize_t tcp_tx_send(tcpconn_t *c, const void *buf, size_t len, bool push)
 		}
 
 		memcpy(mbuf_put(m, seglen), pos, seglen);
-		store_release(&c->pcb.snd_nxt, c->pcb.snd_nxt + seglen);
+		sh_store_release(&c->pcb.snd_nxt, c->pcb.snd_nxt + seglen);
 		pos += seglen;
 
 		/* if not pushing, keep the last buffer for later */
@@ -381,7 +381,7 @@ static int tcp_tx_retransmit_one(tcpconn_t *c, struct mbuf *m)
 	}
 
 	/* handle a partially acknowledged packet */
-	uint32_t una = load_acquire(&c->pcb.snd_una);
+	uint32_t una = sh_load_acquire(&c->pcb.snd_una);
 	if (unlikely(wraps_lte(m->seg_end, una))) {
 		mbuf_free(m);
 		return 0;
@@ -440,7 +440,7 @@ void tcp_tx_retransmit(tcpconn_t *c)
 	struct mbuf *m;
 	uint64_t now = microtime();
 
-	assert(spin_lock_held(&c->lock) || c->tx_exclusive);
+	sh_assert(spin_lock_held(&c->lock) || c->tx_exclusive);
 
 	int ret;
 
@@ -450,7 +450,7 @@ void tcp_tx_retransmit(tcpconn_t *c)
 		if (now - m->timestamp < TCP_RETRANSMIT_TIMEOUT)
 			break;
 
-		if (wraps_gte(load_acquire(&c->pcb.snd_una), m->seg_end))
+		if (wraps_gte(sh_load_acquire(&c->pcb.snd_una), m->seg_end))
 			continue;
 
 		m->timestamp = now;

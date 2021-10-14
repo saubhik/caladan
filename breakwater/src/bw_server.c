@@ -341,8 +341,8 @@ static struct sbw_session *srpc_choose_drained_session(int core_id)
 {
 	struct sbw_session *ret;
 
-	assert(core_id >= 0);
-	assert(core_id < runtime_max_cores());
+	sh_assert(core_id >= 0);
+	sh_assert(core_id < runtime_max_cores());
 
 	ret = NULL;
 
@@ -359,7 +359,7 @@ static struct sbw_session *srpc_choose_drained_session(int core_id)
 		       struct sbw_session,
 		       drained_link);
 
-	assert(ret->is_linked);
+	sh_assert(ret->is_linked);
 	ret->is_linked = false;
 	spin_unlock_np(&srpc_drained[core_id].lock);
 	spin_lock_np(&ret->lock);
@@ -520,7 +520,7 @@ again:
 			log_warn("srpc: winupdate has nonzero len");
 			return -EINVAL;
 		}
-		assert(chdr.len == 0);
+		sh_assert(chdr.len == 0);
 
 		spin_lock_np(&s->lock);
 		old_demand = s->demand;
@@ -655,7 +655,7 @@ static void srpc_sender(void *arg)
 			spin_lock_np(&s->lock);
 			if (!s->demand_sync || s->demand > 0) {
 				spin_lock_np(&srpc_drained[core_id].lock);
-				assert(!s->is_linked);
+				sh_assert(!s->is_linked);
 				BUG_ON(s->win > 0);
 				if (!s->demand_sync) {
 					list_add_tail(&srpc_drained[core_id].list,
@@ -764,8 +764,8 @@ static void srpc_server(void *arg)
 
 	/* initialize windows */
 	if (atomic_read(&srpc_num_sess) == 0) {
-		assert(atomic_read(&srpc_win_used) == 0);
-		assert(atomic_read(&srpc_num_drained) == 0);
+		sh_assert(atomic_read(&srpc_win_used) == 0);
+		sh_assert(atomic_read(&srpc_num_drained) == 0);
 		atomic_write(&srpc_win_used, 0);
 		atomic_write(&srpc_win_avail, runtime_max_cores());
 		fflush(stdout);

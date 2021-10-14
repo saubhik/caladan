@@ -42,7 +42,7 @@ kref_initn(struct kref *ref, int n)
 static inline void
 kref_get(struct kref *ref)
 {
-	assert(atomic_read(&ref->cnt) > 0);
+	sh_assert(atomic_read(&ref->cnt) > 0);
 	atomic_inc(&ref->cnt);
 }
 
@@ -55,7 +55,7 @@ kref_get(struct kref *ref)
 static inline void
 kref_put(struct kref *ref, void (*release)(struct kref *ref))
 {
-	assert(release);
+	sh_assert(release);
 	if (atomic_dec_and_test(&ref->cnt))
 		release(ref);
 }

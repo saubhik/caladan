@@ -50,7 +50,7 @@ static inline void mempool_free(struct mempool *m, void *item)
 {
 	__mempool_free_debug_check(m, item);
 	m->free_items[--m->allocated] = item;
-	assert(m->allocated <= m->capacity); /* could have overflowed */
+	sh_assert(m->allocated <= m->capacity); /* could have overflowed */
 }
 
 extern int mempool_create(struct mempool *m, void *buf, size_t len,

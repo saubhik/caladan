@@ -85,7 +85,7 @@ static inline bool preempt_enabled(void)
  */
 static inline void assert_preempt_disabled(void)
 {
-	assert(!preempt_enabled());
+	sh_assert(!preempt_enabled());
 }
 
 /**

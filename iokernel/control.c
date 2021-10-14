@@ -403,7 +403,7 @@ static void control_loop(void)
 		do {
 			while (lrpc_recv(&lrpc_data_to_control, &cmd, &payload)) {
 				p = (struct proc *) payload;
-				assert(cmd == CONTROL_PLANE_REMOVE_CLIENT);
+				sh_assert(cmd == CONTROL_PLANE_REMOVE_CLIENT);
 				/* it is now safe to remove data structures for this client */
 				control_remove_client(p);
 			}

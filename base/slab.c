@@ -40,7 +40,7 @@ BUILD_ASSERT(sizeof(struct slab_hdr) <= SLAB_MIN_SIZE);
 #define SLAB_2MB_LIMIT \
 	(align_down(PGSIZE_2MB / (SLAB_PARTIAL_THRESH * 2), __WORD_SIZE))
 
-static LIST_HEAD(slab_list);
+static SH_LIST_HEAD(slab_list);
 static DEFINE_SPINLOCK(slab_lock);
 static struct slab node_slab;
 
@@ -142,9 +142,9 @@ static int __slab_early_migrate(struct slab *s)
 			goto fail;
 
 		memcpy(n, s->nodes[i], sizeof(*n));
-		assert(list_empty(&s->nodes[i]->full_list));
+		sh_assert(list_empty(&s->nodes[i]->full_list));
 		list_head_init(&n->full_list);
-		assert(list_empty(&s->nodes[i]->partial_list));
+		sh_assert(list_empty(&s->nodes[i]->partial_list));
 		list_head_init(&n->partial_list);
 		s->nodes[i] = n;
 		if (n->cur_pg)
@@ -223,21 +223,21 @@ static void slab_item_check(struct slab_node *n, void *item)
 
 	/* alignment */
 	if (n->flags & SLAB_FLAG_LGPAGE)
-		assert(PGOFF_2MB(item) % n->size == 0);
+		sh_assert(PGOFF_2MB(item) % n->size == 0);
 	else
-		assert(PGOFF_4KB(item) % n->size == 0);
+		sh_assert(PGOFF_4KB(item) % n->size == 0);
 
 	if (unlikely(!thread_init_done))
 		return;
 
 	/* NUMA node checks */
-	assert(n->numa_node == thread_numa_node);
-	assert(addr_to_numa_node(item) == thread_numa_node);
+	sh_assert(n->numa_node == thread_numa_node);
+	sh_assert(addr_to_numa_node(item) == thread_numa_node);
 
 	/* page checks */
-	assert(is_page_addr(item));
-	assert(pg->flags & PAGE_FLAG_SLAB);
-	assert(pg->snode == n);
+	sh_assert(is_page_addr(item));
+	sh_assert(pg->flags & PAGE_FLAG_SLAB);
+	sh_assert(pg->snode == n);
 }
 
 void slab_alloc_check(struct slab_node *n, void *item)
@@ -308,7 +308,7 @@ static void *__slab_node_alloc(struct slab_node *n)
 		hdr = (struct slab_hdr *)n->cur_pg->next;
 		n->cur_pg->next = (void *)hdr->next_hdr;
 	} else {
-		assert(n->pg_off < ((n->flags & SLAB_FLAG_LGPAGE) ?
+		sh_assert(n->pg_off < ((n->flags & SLAB_FLAG_LGPAGE) ?
 				    PGSIZE_2MB : PGSIZE_4KB));
 		hdr = (struct slab_hdr *)
 			((char *)page_to_addr(n->cur_pg) + n->pg_off);

@@ -40,7 +40,7 @@ ssize_t ReadFull(int fd, void *buf, size_t len) {
     if (ret <= 0) return ret;
     n += ret;
   }
-  assert(n == len);
+  sh_assert(n == len);
   return n;
 }
 
@@ -51,10 +51,10 @@ ssize_t WriteFull(int fd, const void *buf, size_t len) {
   while (n < len) {
     ssize_t ret = write(fd, pos + n, len - n);
     if (ret < 0) return ret;
-    assert(ret > 0);
+    sh_assert(ret > 0);
     n += ret;
   }
-  assert(n == len);
+  sh_assert(n == len);
   return n;
 }
 

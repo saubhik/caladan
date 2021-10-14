@@ -260,7 +260,7 @@ static uint64_t sched_measure_mlx5_delay(struct hwq *h)
 	uint32_t cur_tail;
 	struct mlx5_cqe64 *cqe;
 
-	assert(h->enabled);
+	sh_assert(h->enabled);
 	cur_tail = ACCESS_ONCE(*h->consumer_idx);
 	if (!hwq_busy(h, cur_tail))
 		return 0;
@@ -321,7 +321,7 @@ sched_measure_kthread_delay(struct thread *th,
 
 	/* UTHREAD: measure delay */
 	last_tail = th->last_rq_tail;
-	cur_tail = load_acquire(&th->q_ptrs->rq_tail);
+	cur_tail = sh_load_acquire(&th->q_ptrs->rq_tail);
 	last_head = th->last_rq_head;
 	cur_head = ACCESS_ONCE(th->q_ptrs->rq_head);
 	th->last_rq_head = cur_head;
@@ -474,7 +474,7 @@ static int sched_try_fast_rewake(struct thread *th)
 	if (ACCESS_ONCE(th->rxq.send_head) != lrpc_poll_send_tail(&th->rxq))
 		goto rewake;
 
-	for (i = 0; i < ARRAY_SIZE(th->hwqs); i++) {
+	for (i = 0; i < SH_ARRAY_SIZE(th->hwqs); i++) {
 		h = &th->hwqs[i];
 		if (h->enabled && hwq_busy(h, ACCESS_ONCE(*h->consumer_idx)))
 			goto rewake;

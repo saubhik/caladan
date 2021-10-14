@@ -12,9 +12,9 @@ bool __lrpc_send(struct lrpc_chan_out *chan, uint64_t cmd,
 {
 	struct lrpc_msg *dst;
 
-	assert(chan->send_head - chan->send_tail == chan->size);
+	sh_assert(chan->send_head - chan->send_tail == chan->size);
 
-	chan->send_tail = load_acquire(chan->recv_head_wb);
+	chan->send_tail = sh_load_acquire(chan->recv_head_wb);
         if (chan->send_head - chan->send_tail == chan->size)
                 return false;
 
@@ -22,7 +22,7 @@ bool __lrpc_send(struct lrpc_chan_out *chan, uint64_t cmd,
 	dst->payload = payload;
 
 	cmd |= (chan->send_head++ & chan->size) ? 0 : LRPC_DONE_PARITY;
-	store_release(&dst->cmd, cmd);
+	sh_store_release(&dst->cmd, cmd);
 	return true;
 }
 

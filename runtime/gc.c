@@ -25,7 +25,7 @@ bool cfg_gc_enabled;
 /* global lock protecting gc state */
 static DEFINE_SPINLOCK(gc_lock);
 /* list of paused runnable uthreads */
-static LIST_HEAD(paused_uthreads);
+static SH_LIST_HEAD(paused_uthreads);
 /* list of all threads with live stacks */
 static struct all_threads_percore all_threads[NCPU];
 /* bitmap of kthreads that have reported in for GC */
@@ -44,11 +44,11 @@ void gc_kthread_report(struct kthread *k)
 	spin_lock(&gc_lock);
 
 	assert_spin_lock_held(&k->lock);
-	assert(myk() == k || ACCESS_ONCE(k->parked));
-	assert(k->local_gc_gen + 1 == gc_gen);
-	assert(!bitmap_test(gc_kthread_reports, k->kthread_idx));
+	sh_assert(myk() == k || ACCESS_ONCE(k->parked));
+	sh_assert(k->local_gc_gen + 1 == gc_gen);
+	sh_assert(!bitmap_test(gc_kthread_reports, k->kthread_idx));
 
-	avail = load_acquire(&k->rq_head) - k->rq_tail;
+	avail = sh_load_acquire(&k->rq_head) - k->rq_tail;
 
 	for (i = 0; i < avail; i++) {
 		th = k->rq[k->rq_tail++ % RUNTIME_RQ_SIZE];
@@ -72,11 +72,11 @@ void gc_kthread_report(struct kthread *k)
 
 void gc_start_world(void)
 {
-	LIST_HEAD(tmp);
+	SH_LIST_HEAD(tmp);
 	thread_t *th;
 
 	spin_lock_np(&gc_lock);
-	assert(world_stopped);
+	sh_assert(world_stopped);
 	world_stopped = false;
 	list_append_list(&tmp, &paused_uthreads);
 
@@ -102,7 +102,7 @@ void gc_stop_world(void)
 		panic("please add \"enable_gc\" to your config file to enable GC");
 
 	spin_lock_np(&gc_lock);
-	assert(!world_stopped);
+	sh_assert(!world_stopped);
 
 	ACCESS_ONCE(gc_gen) = gc_gen + 1;
 	ACCESS_ONCE(world_stopped) = true;
@@ -155,7 +155,7 @@ void gc_discover_all_stacks(stack_bounds_cb discover_cb)
 	uint64_t top;
 
 	spin_lock_np(&gc_lock);
-	assert(world_stopped);
+	sh_assert(world_stopped);
 
 	for (i = 0; i < maxks; i++) {
 		spin_lock(&all_threads[i].lock);

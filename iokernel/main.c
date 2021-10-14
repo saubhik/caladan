@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
 	}
 
 	ret = run_init_handlers("iokernel", iok_init_handlers,
-			ARRAY_SIZE(iok_init_handlers));
+			SH_ARRAY_SIZE(iok_init_handlers));
 	if (ret)
 		return ret;
 

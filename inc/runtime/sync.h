@@ -76,7 +76,7 @@ static inline bool mutex_held(mutex_t *m)
  */
 static inline void assert_mutex_held(mutex_t *m)
 {
-	assert(mutex_held(m));
+	sh_assert(mutex_held(m));
 }
 
 

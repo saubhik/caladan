@@ -8,7 +8,7 @@
 namespace quic {
 
 NetworkSocket socket(int af, int type, int protocol) {
-  assert(type == SOCK_DGRAM);
+  sh_assert(type == SOCK_DGRAM);
 
   quic::NativeSocket sock;
   sock = static_cast<quic::NativeSocket>(smalloc(sizeof sock));

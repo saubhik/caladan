@@ -11,7 +11,7 @@
 #include "sched.h"
 
 /* a list of processes that are waiting for more cores */
-static LIST_HEAD(congested_procs);
+static SH_LIST_HEAD(congested_procs);
 /* a bitmap of all available cores that are currently idle */
 static DEFINE_BITMAP(simple_idle_cores, NCPU);
 

@@ -42,7 +42,7 @@ static int str_to_mac(const char *str, struct eth_addr *addr)
 		"%hhx%hhx%hhx%hhx%hhx%hhx"
 	};
 
-	for (i = 0; i < ARRAY_SIZE(fmts); i++) {
+	for (i = 0; i < SH_ARRAY_SIZE(fmts); i++) {
 		if (sscanf(str, fmts[i], &addr->addr[0], &addr->addr[1],
 			   &addr->addr[2], &addr->addr[3], &addr->addr[4],
 			   &addr->addr[5]) == 6) {
@@ -222,9 +222,9 @@ static int parse_mtu(const char *num, const char *val)
 	if (ret)
 		return ret;
 
-	if (tmp < 0 || tmp > ETH_MAX_MTU) {
+	if (tmp < 0 || tmp > SH_ETH_MAX_MTU) {
 		log_err("MTU must be positive and <= %d, got %ld",
-			ETH_MAX_MTU, tmp);
+			SH_ETH_MAX_MTU, tmp);
 		return -EINVAL;
 	}
 
@@ -340,7 +340,7 @@ static int parse_enable_gc(const char *name, const char *val)
  */
 
 
-static LIST_HEAD(dyn_cfg_handlers);
+static SH_LIST_HEAD(dyn_cfg_handlers);
 static unsigned int nr_dyn_cfg_handlers;
 
 void cfg_register(struct cfg_handler *h)
@@ -382,7 +382,7 @@ int cfg_load(const char *path)
 {
 	FILE *f;
 	char buf[BUFSIZ];
-	size_t handler_cnt = ARRAY_SIZE(cfg_handlers) + nr_dyn_cfg_handlers;
+	size_t handler_cnt = SH_ARRAY_SIZE(cfg_handlers) + nr_dyn_cfg_handlers;
 	DEFINE_BITMAP(parsed, handler_cnt);
 	char *name, *val;
 	int i, ret = 0, line = 0;
@@ -415,7 +415,7 @@ int cfg_load(const char *path)
 
 		cur = dyn_cfg_handlers.n.next;
 		for (i = 0; i < handler_cnt; i++) {
-			if (i < ARRAY_SIZE(cfg_handlers)) {
+			if (i < SH_ARRAY_SIZE(cfg_handlers)) {
 				h = &cfg_handlers[i];
 			} else {
 				h = list_entry(cur, struct cfg_handler, link);
@@ -438,7 +438,7 @@ int cfg_load(const char *path)
 
 	cur = dyn_cfg_handlers.n.next;
 	for (i = 0; i < handler_cnt; i++) {
-		if (i < ARRAY_SIZE(cfg_handlers)) {
+		if (i < SH_ARRAY_SIZE(cfg_handlers)) {
 			h = &cfg_handlers[i];
 		} else {
 			h = list_entry(cur, struct cfg_handler, link);

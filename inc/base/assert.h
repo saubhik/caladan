@@ -19,7 +19,7 @@ extern void logk_bug(bool fatal, const char *expr,
 
 /* these assertions will get compiled out in release builds (fails on false) */
 #if DEBUG
-#define assert(cond)						\
+#define sh_assert(cond)						\
         do {							\
 		__build_assert_if_constant(cond);		\
 		if (unlikely(!(cond))) {			\
@@ -29,7 +29,7 @@ extern void logk_bug(bool fatal, const char *expr,
 		}						\
         } while (0)
 #else /* DEBUG */
-#define assert(cond)						\
+#define sh_assert(cond)						\
 	do {							\
 		__build_assert_if_constant(cond);		\
 		(void)sizeof(cond);				\

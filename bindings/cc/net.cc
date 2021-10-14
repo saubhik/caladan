@@ -21,7 +21,7 @@ bool PullIOV(struct iovec **iovp, int *iovcntp, size_t n) {
     n -= iov[i].iov_len;
   }
 
-  assert(n == 0);
+  sh_assert(n == 0);
   return false;
 }
 
@@ -39,7 +39,7 @@ ssize_t TcpConn::WritevFullRaw(const iovec *iov, int iovcnt) {
   // first try to send without copying the vector
   ssize_t n = tcp_writev(c_, iov, iovcnt);
   if (n < 0) return n;
-  assert(n > 0);
+  sh_assert(n > 0);
 
   // sum total length and check if everything was transfered
   size_t total = SumIOV(iov, iovcnt);
@@ -53,11 +53,11 @@ ssize_t TcpConn::WritevFullRaw(const iovec *iov, int iovcnt) {
   while (PullIOV(&iovp, &iovcnt, n)) {
     n = tcp_writev(c_, iovp, iovcnt);
     if (n < 0) return n;
-    assert(n > 0);
+    sh_assert(n > 0);
     len += n;
   }
 
-  assert(len == total);
+  sh_assert(len == total);
   return len;
 }
 
@@ -81,7 +81,7 @@ ssize_t TcpConn::ReadvFullRaw(const iovec *iov, int iovcnt) {
     len += n;
   }
 
-  assert(len == total);
+  sh_assert(len == total);
   return len;
 }
 

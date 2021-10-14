@@ -54,7 +54,7 @@ void logk(int level, const char *fmt, ...)
 void logk_backtrace(void)
 {
 	void *buf[MAX_CALL_DEPTH];
-	const int calls = backtrace(buf, ARRAY_SIZE(buf));
+	const int calls = backtrace(buf, SH_ARRAY_SIZE(buf));
 	backtrace_symbols_fd(buf, calls, 1);
 }
 

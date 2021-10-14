@@ -78,7 +78,7 @@ void Thread::Detach() {
   spin_lock_np(&join_data_->lock_);
   if (join_data_->done_) {
     spin_unlock_np(&join_data_->lock_);
-    assert(join_data_->waiter_ != nullptr);
+    sh_assert(join_data_->waiter_ != nullptr);
     thread_ready(join_data_->waiter_);
     join_data_ = nullptr;
     return;
@@ -95,7 +95,7 @@ void Thread::Join() {
   spin_lock_np(&join_data_->lock_);
   if (join_data_->done_) {
     spin_unlock_np(&join_data_->lock_);
-    assert(join_data_->waiter_ != nullptr);
+    sh_assert(join_data_->waiter_ != nullptr);
     thread_ready(join_data_->waiter_);
     join_data_ = nullptr;
     return;

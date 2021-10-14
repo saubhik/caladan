@@ -80,13 +80,13 @@ static inline bool cores_have_affinity(unsigned int cpua, unsigned int cpub)
 static __noreturn void jmp_thread(thread_t *th)
 {
 	assert_preempt_disabled();
-	assert(th->thread_ready);
+	sh_assert(th->thread_ready);
 
 	__self = th;
 	th->thread_ready = false;
-	if (unlikely(load_acquire(&th->thread_running))) {
+	if (unlikely(sh_load_acquire(&th->thread_running))) {
 		/* wait until the scheduler finishes switching stacks */
-		while (load_acquire(&th->thread_running))
+		while (sh_load_acquire(&th->thread_running))
 			cpu_relax();
 	}
 	th->thread_running = true;
@@ -104,13 +104,13 @@ static __noreturn void jmp_thread(thread_t *th)
 static void jmp_thread_direct(thread_t *oldth, thread_t *newth)
 {
 	assert_preempt_disabled();
-	assert(newth->thread_ready);
+	sh_assert(newth->thread_ready);
 
 	__self = newth;
 	newth->thread_ready = false;
-	if (unlikely(load_acquire(&newth->thread_running))) {
+	if (unlikely(sh_load_acquire(&newth->thread_running))) {
 		/* wait until the scheduler finishes switching stacks */
-		while (load_acquire(&newth->thread_running))
+		while (sh_load_acquire(&newth->thread_running))
 			cpu_relax();
 	}
 	newth->thread_running = true;
@@ -130,7 +130,7 @@ static void jmp_thread_direct(thread_t *oldth, thread_t *newth)
 static void jmp_runtime(runtime_fn_t fn)
 {
 	assert_preempt_disabled();
-	assert(thread_self() != NULL);
+	sh_assert(thread_self() != NULL);
 
 	__jmp_runtime(&thread_self()->tf, fn, runtime_stack);
 }
@@ -152,7 +152,7 @@ static void drain_overflow(struct kthread *l)
 	thread_t *th;
 
 	assert_spin_lock_held(&l->lock);
-	assert(myk() == l || l->parked);
+	sh_assert(myk() == l || l->parked);
 
 	while (l->rq_head - l->rq_tail < RUNTIME_RQ_SIZE) {
 		th = list_pop(&l->rq_overflow, thread_t, link);
@@ -182,7 +182,7 @@ static void update_oldest_tsc(struct kthread *k)
 	assert_spin_lock_held(&k->lock);
 
 	/* find the oldest thread in the runqueue */
-	if (load_acquire(&k->rq_head) != k->rq_tail) {
+	if (sh_load_acquire(&k->rq_head) != k->rq_tail) {
 		th = k->rq[k->rq_tail % RUNTIME_RQ_SIZE];
 		ACCESS_ONCE(k->q_ptrs->oldest_tsc) = th->ready_tsc;
 	}
@@ -194,7 +194,7 @@ static bool steal_work(struct kthread *l, struct kthread *r)
 	uint32_t i, avail, rq_tail, overflow = 0;
 
 	assert_spin_lock_held(&l->lock);
-	assert(l->rq_head == 0 && l->rq_tail == 0);
+	sh_assert(l->rq_head == 0 && l->rq_tail == 0);
 
 	if (!work_available(r))
 		return false;
@@ -212,14 +212,14 @@ static bool steal_work(struct kthread *l, struct kthread *r)
 	}
 #endif
 	/* try to steal directly from the runqueue */
-	avail = load_acquire(&r->rq_head) - r->rq_tail;
+	avail = sh_load_acquire(&r->rq_head) - r->rq_tail;
 	if (avail) {
 		/* steal half the tasks */
 		avail = div_up(avail, 2);
 		rq_tail = r->rq_tail;
 		for (i = 0; i < avail; i++)
 			l->rq[i] = r->rq[rq_tail++ % RUNTIME_RQ_SIZE];
-		store_release(&r->rq_tail, rq_tail);
+		sh_store_release(&r->rq_tail, rq_tail);
 
 		/*
 		 * Drain the remote overflow queue, so newly readied tasks
@@ -292,11 +292,11 @@ static __noreturn __noinline void schedule(void)
 	int i, sibling;
 
 	assert_spin_lock_held(&l->lock);
-	assert(l->parked == false);
+	sh_assert(l->parked == false);
 
 	/* unmark busy for the stack of the last uthread */
 	if (likely(__self != NULL)) {
-		store_release(&__self->thread_running, false);
+		sh_store_release(&__self->thread_running, false);
 		__self = NULL;
 	}
 
@@ -312,9 +312,9 @@ static __noreturn __noinline void schedule(void)
 	STAT(PROGRAM_CYCLES) += start_tsc - last_tsc;
 
 	/* increment the RCU generation number (even is in scheduler) */
-	store_release(&l->rcu_gen, l->rcu_gen + 1);
+	sh_store_release(&l->rcu_gen, l->rcu_gen + 1);
 	ACCESS_ONCE(l->q_ptrs->rcu_gen) += 1;
-	assert((l->rcu_gen & 0x1) == 0x0);
+	sh_assert((l->rcu_gen & 0x1) == 0x0);
 
 #ifdef GC
 	if (unlikely(get_gc_gen() != l->local_gc_gen))
@@ -397,7 +397,7 @@ again:
 
 done:
 	/* pop off a thread and run it */
-	assert(l->rq_head != l->rq_tail);
+	sh_assert(l->rq_head != l->rq_tail);
 	th = l->rq[l->rq_tail++ % RUNTIME_RQ_SIZE];
 	ACCESS_ONCE(l->q_ptrs->rq_tail)++;
 
@@ -422,9 +422,9 @@ done:
 	ACCESS_ONCE(l->q_ptrs->run_start_tsc) = th->run_start_tsc;
 
 	/* increment the RCU generation number (odd is in thread) */
-	store_release(&l->rcu_gen, l->rcu_gen + 1);
+	sh_store_release(&l->rcu_gen, l->rcu_gen + 1);
 	ACCESS_ONCE(l->q_ptrs->rcu_gen) += 1;
-	assert((l->rcu_gen & 0x1) == 0x1);
+	sh_assert((l->rcu_gen & 0x1) == 0x1);
 
 	/* and jump into the next thread */
 	jmp_thread(th);
@@ -477,9 +477,9 @@ static __always_inline void enter_schedule(thread_t *curth)
 	ACCESS_ONCE(k->q_ptrs->run_start_tsc) = th->run_start_tsc;
 
 	/* increment the RCU generation number (odd is in thread) */
-	store_release(&k->rcu_gen, k->rcu_gen + 2);
+	sh_store_release(&k->rcu_gen, k->rcu_gen + 2);
 	ACCESS_ONCE(k->q_ptrs->rcu_gen) += 2;
-	assert((k->rcu_gen & 0x1) == 0x1);
+	sh_assert((k->rcu_gen & 0x1) == 0x1);
 
 	/* check for misuse of preemption disabling */
 	BUG_ON((preempt_cnt & ~PREEMPT_NOT_PENDING) != 1);
@@ -576,7 +576,7 @@ void thread_ready_locked(thread_t *th)
 
 	thread_ready_prepare(k, th);
 	if (unlikely(k->rq_head - k->rq_tail >= RUNTIME_RQ_SIZE)) {
-		assert(k->rq_head - k->rq_tail == RUNTIME_RQ_SIZE);
+		sh_assert(k->rq_head - k->rq_tail == RUNTIME_RQ_SIZE);
 		list_add_tail(&k->rq_overflow, &th->link);
 		ACCESS_ONCE(k->q_ptrs->rq_head)++;
 		STAT(RQ_OVERFLOW)++;
@@ -633,9 +633,9 @@ void thread_ready(thread_t *th)
 
 	k = getk();
 	thread_ready_prepare(k, th);
-	rq_tail = load_acquire(&k->rq_tail);
+	rq_tail = sh_load_acquire(&k->rq_tail);
 	if (unlikely(k->rq_head - rq_tail >= RUNTIME_RQ_SIZE)) {
-		assert(k->rq_head - rq_tail == RUNTIME_RQ_SIZE);
+		sh_assert(k->rq_head - rq_tail == RUNTIME_RQ_SIZE);
 		spin_lock(&k->lock);
 		list_add_tail(&k->rq_overflow, &th->link);
 		spin_unlock(&k->lock);
@@ -646,8 +646,8 @@ void thread_ready(thread_t *th)
 	}
 
 	k->rq[k->rq_head % RUNTIME_RQ_SIZE] = th;
-	store_release(&k->rq_head, k->rq_head + 1);
-	if (k->rq_head - load_acquire(&k->rq_tail) == 1)
+	sh_store_release(&k->rq_head, k->rq_head + 1);
+	if (k->rq_head - sh_load_acquire(&k->rq_tail) == 1)
 		ACCESS_ONCE(k->q_ptrs->oldest_tsc) = th->ready_tsc;
 	ACCESS_ONCE(k->q_ptrs->rq_head)++;
 	putk();
@@ -714,9 +714,9 @@ static void thread_finish_cede(void)
 	spin_unlock(&k->lock);
 
 	/* increment the RCU generation number (even - pretend in sched) */
-	store_release(&k->rcu_gen, k->rcu_gen + 1);
+	sh_store_release(&k->rcu_gen, k->rcu_gen + 1);
 	ACCESS_ONCE(k->q_ptrs->rcu_gen) += 1;
-	assert((k->rcu_gen & 0x1) == 0x0);
+	sh_assert((k->rcu_gen & 0x1) == 0x0);
 
 	/* cede this kthread to the iokernel */
 	ACCESS_ONCE(k->parked) = true; /* deliberately racy */
@@ -724,9 +724,9 @@ static void thread_finish_cede(void)
 	last_tsc = rdtsc();
 
 	/* increment the RCU generation number (odd - back in thread) */
-	store_release(&k->rcu_gen, k->rcu_gen + 1);
+	sh_store_release(&k->rcu_gen, k->rcu_gen + 1);
 	ACCESS_ONCE(k->q_ptrs->rcu_gen) += 1;
-	assert((k->rcu_gen & 0x1) == 0x1);
+	sh_assert((k->rcu_gen & 0x1) == 0x1);
 
 	/* re-enter the scheduler */
 	spin_lock(&k->lock);
@@ -907,7 +907,7 @@ static __noreturn void schedule_start(void)
 	ACCESS_ONCE(k->parked) = true;
 	kthread_wait_to_attach();
 	last_tsc = rdtsc();
-	store_release(&k->rcu_gen, 1);
+	sh_store_release(&k->rcu_gen, 1);
 	ACCESS_ONCE(k->q_ptrs->rcu_gen) = 1;
 
 	spin_lock(&k->lock);
