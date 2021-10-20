@@ -4,7 +4,7 @@ namespace rt {
 namespace thread_internal {
 
 // Number of user threads.
-thread_id_t nrus = 0;
+thread_id_t nrus = 1;  // 0 is reserved for the main thread
 
 join_data::join_data(std::function<void()> &&func)
     : done_{false}, waiter_{nullptr}, func_{std::move(func)} {

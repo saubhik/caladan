@@ -57,6 +57,8 @@ void ReadYThenX() {
 }
 
 void MainHandler(void *arg) {
+  PrintId();
+
   auto th1 = rt::Thread(WriteX);
   auto th2 = rt::Thread(WriteY);
   auto th3 = rt::Thread(ReadXThenY);
