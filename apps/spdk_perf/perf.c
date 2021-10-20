@@ -860,7 +860,7 @@ print_performance(void)
 		worker = worker->next;
 	}
 
-	assert(total_io_completed[READ] + total_io_completed[WRITE] != 0);
+	sh_assert(total_io_completed[READ] + total_io_completed[WRITE] != 0);
 	for (i = 0; i < NUM_IO_TYPES; i++){
 		if (total_io_completed[i] == 0)
 			continue;

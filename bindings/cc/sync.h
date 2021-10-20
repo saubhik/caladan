@@ -38,7 +38,7 @@ void write_once(T &p, const T &val) {
 class ThreadWaker {
  public:
   ThreadWaker() : th_(nullptr) {}
-  ~ThreadWaker() { assert(th_ == nullptr); }
+  ~ThreadWaker() { sh_assert(th_ == nullptr); }
 
   // disable copy.
   ThreadWaker(const ThreadWaker &) = delete;
@@ -97,13 +97,13 @@ class Preempt {
   // Returns true if preemption is needed. Will be handled on Unlock() or on
   // UnlockAndPark().
   bool PreemptNeeded() const {
-    assert(IsHeld());
+    sh_assert(IsHeld());
     return preempt_needed();
   }
 
   // Gets the current CPU index (not the same as the core number).
   unsigned int get_cpu() const {
-    assert(IsHeld());
+    sh_assert(IsHeld());
     return read_once(kthread_idx);
   }
 };
@@ -112,7 +112,7 @@ class Preempt {
 class Spin {
  public:
   Spin() { spin_lock_init(&lock_); }
-  ~Spin() { assert(!spin_lock_held(&lock_)); }
+  ~Spin() { sh_assert(!spin_lock_held(&lock_)); }
 
   // Locks the spin lock.
   void Lock() { spin_lock_np(&lock_); }
@@ -133,13 +133,13 @@ class Spin {
   // Returns true if preemption is needed. Will be handled on Unlock() or on
   // UnlockAndPark().
   bool PreemptNeeded() {
-    assert(IsHeld());
+    sh_assert(IsHeld());
     return preempt_needed();
   }
 
   // Gets the current CPU index (not the same as the core number).
   unsigned int get_cpu() {
-    assert(IsHeld());
+    sh_assert(IsHeld());
     return read_once(kthread_idx);
   }
 
@@ -156,7 +156,7 @@ class Mutex {
 
  public:
   Mutex() { mutex_init(&mu_); }
-  ~Mutex() { assert(!mutex_held(&mu_)); }
+  ~Mutex() { sh_assert(!mutex_held(&mu_)); }
 
   // Locks the mutex.
   void Lock() { mutex_lock(&mu_); }
@@ -248,7 +248,7 @@ class WaitGroup {
     waitgroup_add(&wg_, count);
   }
 
-  ~WaitGroup() { assert(wg_.cnt == 0); };
+  ~WaitGroup() { sh_assert(wg_.cnt == 0); };
 
   // Changes the number of jobs (can be negative).
   void Add(int count) { waitgroup_add(&wg_, count); }

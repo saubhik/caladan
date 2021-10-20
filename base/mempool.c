@@ -19,10 +19,10 @@ static void mempool_common_check(struct mempool *m, void *item)
 	uintptr_t start = (uintptr_t)m->buf;
 
 	/* is the item within the bounds of the pool */
-	assert(pos >= start && pos < start + m->len);
+	sh_assert(pos >= start && pos < start + m->len);
 
 	/* is the item properly aligned */
-	assert((start & (m->pgsize - 1)) % m->item_len == 0);
+	sh_assert((start & (m->pgsize - 1)) % m->item_len == 0);
 }
 
 void __mempool_alloc_debug_check(struct mempool *m, void *item)

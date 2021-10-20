@@ -15,7 +15,7 @@
 #include "ias.h"
 
 /* a list of all processes */
-LIST_HEAD(all_procs);
+SH_LIST_HEAD(all_procs);
 /* a bitmap of all available cores that are currently idle */
 static DEFINE_BITMAP(ias_idle_cores, NCPU);
 /* a bitmap of all cores that tasks have reserved */

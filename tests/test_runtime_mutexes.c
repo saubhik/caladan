@@ -108,7 +108,7 @@ static void main_handler(void *arg)
 	for (i = 0; i < ITERS; i++) {
 		bucket = rand() % N;
 		mutex_lock(&buckets[bucket].lock);
-		assert(buckets[bucket].message == 0);
+		sh_assert(buckets[bucket].message == 0);
 		buckets[bucket].message = 1;
 		condvar_signal(&buckets[bucket].cv);
 		mutex_unlock(&buckets[bucket].lock);
@@ -126,7 +126,7 @@ static void main_handler(void *arg)
 	// Send close message to all buckets.
 	for (i = 0; i < N; i++) {
 		mutex_lock(&buckets[i].lock);
-		assert(buckets[i].message == 0);
+		sh_assert(buckets[i].message == 0);
 		buckets[i].message = 2;
 		condvar_signal(&buckets[i].cv);
 		mutex_unlock(&buckets[i].lock);

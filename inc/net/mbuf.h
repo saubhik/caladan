@@ -200,7 +200,7 @@ static inline unsigned int mbuf_length(struct mbuf *m)
 static inline void mbuf_mark_network_offset(struct mbuf *m)
 {
 	ptrdiff_t off = m->data - m->head;
-	assert(off <= USHRT_MAX);
+	sh_assert(off <= USHRT_MAX);
 	m->network_off = off;
 }
 
@@ -211,7 +211,7 @@ static inline void mbuf_mark_network_offset(struct mbuf *m)
 static inline void mbuf_mark_transport_offset(struct mbuf *m)
 {
 	ptrdiff_t off = m->data - m->head;
-	assert(off <= USHRT_MAX);
+	sh_assert(off <= USHRT_MAX);
 	m->transport_off = off;
 }
 
@@ -249,7 +249,7 @@ static inline unsigned char *mbuf_transport_offset(struct mbuf *m)
 static inline void mbuf_init(struct mbuf *m, unsigned char *head,
 			     unsigned int head_len, unsigned int reserve_len)
 {
-	assert(reserve_len < head_len);
+	sh_assert(reserve_len < head_len);
 	m->head = head;
 	m->head_len = head_len;
 	m->data = m->head + reserve_len;

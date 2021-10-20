@@ -30,7 +30,7 @@ static inline void ksched_run(unsigned int core, pid_t tid)
 	unsigned int gen = ++ksched_gens[core];
 
 	ksched_shm[core].tid = tid;
-	store_release(&ksched_shm[core].gen, gen);
+	sh_store_release(&ksched_shm[core].gen, gen);
 }
 
 /**
@@ -41,7 +41,7 @@ static inline void ksched_run(unsigned int core, pid_t tid)
  */
 static inline bool ksched_poll_run_done(unsigned int core)
 {
-	return load_acquire(&ksched_shm[core].last_gen) == ksched_gens[core];
+	return sh_load_acquire(&ksched_shm[core].last_gen) == ksched_gens[core];
 }
 
 /**
@@ -52,7 +52,7 @@ static inline bool ksched_poll_run_done(unsigned int core)
  */
 static inline bool ksched_poll_idle(unsigned int core)
 {
-	return !load_acquire(&ksched_shm[core].busy);
+	return !sh_load_acquire(&ksched_shm[core].busy);
 }
 
 static inline void ksched_idle_hint(unsigned int core, unsigned int hint)
@@ -94,7 +94,7 @@ static inline void ksched_enqueue_intr(unsigned int core, int type)
 	}
 
 	ksched_shm[core].signum = signum;
-	store_release(&ksched_shm[core].sig, ksched_gens[core]);
+	sh_store_release(&ksched_shm[core].sig, ksched_gens[core]);
 	CPU_SET(core, &ksched_set);
 	ksched_count++;
 }
@@ -107,7 +107,7 @@ static inline void ksched_enqueue_intr(unsigned int core, int type)
 static inline void ksched_enqueue_pmc(unsigned int core, uint64_t sel)
 {
 	ksched_shm[core].pmcsel = sel;
-	store_release(&ksched_shm[core].pmc, 1);
+	sh_store_release(&ksched_shm[core].pmc, 1);
 	CPU_SET(core, &ksched_set);
 	ksched_count++;
 }
@@ -122,7 +122,7 @@ static inline void ksched_enqueue_pmc(unsigned int core, uint64_t sel)
  */
 static inline bool ksched_poll_pmc(unsigned int core, uint64_t *val, uint64_t *tsc)
 {
-	if (load_acquire(&ksched_shm[core].pmc) != 0)
+	if (sh_load_acquire(&ksched_shm[core].pmc) != 0)
 		return false;
 	*val = ACCESS_ONCE(ksched_shm[core].pmcval);
 	*tsc = ACCESS_ONCE(ksched_shm[core].pmctsc);

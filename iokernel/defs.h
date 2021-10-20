@@ -10,7 +10,7 @@
 #include <base/lrpc.h>
 #include <base/mem.h>
 #include <base/pci.h>
-#undef LIST_HEAD /* hack to deal with DPDK being annoying */
+#undef SH_LIST_HEAD /* hack to deal with DPDK being annoying */
 #include <base/list.h>
 #include <iokernel/control.h>
 #include <net/ethernet.h>

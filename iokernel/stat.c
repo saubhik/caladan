@@ -29,7 +29,7 @@ static const char *stat_names[] = {
 	"ADJUSTS",
 };
 
-BUILD_ASSERT(ARRAY_SIZE(stat_names) == NR_STATS);
+BUILD_ASSERT(SH_ARRAY_SIZE(stat_names) == NR_STATS);
 
 void print_stats(void)
 {

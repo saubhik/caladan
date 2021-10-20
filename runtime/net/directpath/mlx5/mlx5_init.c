@@ -178,7 +178,7 @@ static int mlx5_create_rxq(int index, struct mlx5_rxq *v)
 	static unsigned char rss_key[40];
 	struct ibv_rx_hash_conf rss_cnf = {
 		.rx_hash_function = IBV_RX_HASH_FUNC_TOEPLITZ,
-		.rx_hash_key_len = ARRAY_SIZE(rss_key),
+		.rx_hash_key_len = SH_ARRAY_SIZE(rss_key),
 		.rx_hash_key = rss_key,
 		.rx_hash_fields_mask = IBV_RX_HASH_SRC_IPV4 | IBV_RX_HASH_DST_IPV4 | IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_DST_PORT_TCP,
 	};
@@ -383,7 +383,7 @@ int mlx5_init(struct hardware_q **rxq_out, struct direct_txq **txq_out,
 	}
 
 	for (i = 0; dev_list[i]; i++) {
-		if (strncmp(ibv_get_device_name(dev_list[i]), "mlx5", 4))
+		if (strncmp(ibv_get_device_name(dev_list[i]), "mlx5_3", 6))
 			continue;
 
 		if (!cfg_pci_addr_specified)

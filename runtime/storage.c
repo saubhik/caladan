@@ -89,7 +89,7 @@ static void attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
 	block_size = spdk_nvme_ns_get_sector_size(spdk_namespace);
 	num_blocks = spdk_nvme_ns_get_num_sectors(spdk_namespace);
 
-	for (i = 0; i < ARRAY_SIZE(known_devices); i++) {
+	for (i = 0; i < SH_ARRAY_SIZE(known_devices); i++) {
 		if (!strncmp((char *)ctrlr_data->mn, known_devices[i].name,
 			           strlen(known_devices[i].name))) {
 			log_info("storage: recognized device %s", known_devices[i].name);

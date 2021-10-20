@@ -147,8 +147,8 @@ static void udp_finish_release_conn(struct rcu_head *h)
 static void udp_release_conn_ref(struct kref *ref)
 {
 	udpconn_t *c = container_of(ref, udpconn_t, ref);
-	assert(waitq_empty(&c->inq_wq) && waitq_empty(&c->outq_wq));
-	assert(mbufq_empty(&c->inq));
+	sh_assert(waitq_empty(&c->inq_wq) && waitq_empty(&c->outq_wq));
+	sh_assert(mbufq_empty(&c->inq));
 	rcu_free(&c->e.rcu, udp_finish_release_conn);
 }
 
@@ -328,7 +328,7 @@ ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
 		raddr->ip = ntoh32(iphdr->saddr);
 		raddr->port = ntoh16(udphdr->src_port);
 		if (c->e.match == TRANS_MATCH_5TUPLE) {
-			assert(c->e.raddr.ip == raddr->ip &&
+			sh_assert(c->e.raddr.ip == raddr->ip &&
 			       c->e.raddr.port == raddr->port);
 		}
 	}

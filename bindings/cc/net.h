@@ -141,7 +141,7 @@ class TcpConn : public NetConn {
       if (ret <= 0) return ret;
       n += ret;
     }
-    assert(n == len);
+    sh_assert(n == len);
     return n;
   }
 
@@ -152,10 +152,10 @@ class TcpConn : public NetConn {
     while (n < len) {
       ssize_t ret = Write(pos + n, len - n);
       if (ret < 0) return ret;
-      assert(ret > 0);
+      sh_assert(ret > 0);
       n += ret;
     }
-    assert(n == len);
+    sh_assert(n == len);
     return n;
   }
 

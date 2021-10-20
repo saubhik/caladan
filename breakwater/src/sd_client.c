@@ -139,7 +139,7 @@ static ssize_t crpc_send_raw(struct csd_session *s,
 	ret = tcp_writev_full(s->cmn.c, vec, 2);
 	if (unlikely(ret < 0))
 		return ret;
-	assert(ret == sizeof(chdr) + len);
+	sh_assert(ret == sizeof(chdr) + len);
 	s->req_tx_++;
 
 	return len;
@@ -272,7 +272,7 @@ ssize_t csd_recv_one(struct crpc_session *s_, void *buf, size_t len,
 	ret = tcp_read_full(s->cmn.c, &shdr, sizeof(shdr));
 	if (unlikely(ret <= 0))
 		return ret;
-	assert(ret == sizeof(shdr));
+	sh_assert(ret == sizeof(shdr));
 
 	/* parse the server header */
 	if (unlikely(shdr.magic != SD_RESP_MAGIC)) {
@@ -293,7 +293,7 @@ ssize_t csd_recv_one(struct crpc_session *s_, void *buf, size_t len,
 			ret = tcp_read_full(s->cmn.c, buf, shdr.len);
 			if (unlikely(ret <= 0))
 				return ret;
-			assert(ret == shdr.len);
+			sh_assert(ret == shdr.len);
 			s->resp_rx_++;
 		}
 

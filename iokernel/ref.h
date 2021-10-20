@@ -32,7 +32,7 @@ ref_init(struct ref *ref)
 static inline void
 ref_get(struct ref *ref)
 {
-	assert(ref->cnt > 0);
+	sh_assert(ref->cnt > 0);
 	ref->cnt++;
 }
 
@@ -45,7 +45,7 @@ ref_get(struct ref *ref)
 static inline void
 ref_put(struct ref *ref, void (*release)(struct ref *ref))
 {
-	assert(release);
+	sh_assert(release);
 	if (--ref->cnt == 0)
 		release(ref);
 }

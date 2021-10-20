@@ -6,11 +6,13 @@ extern "C" {
 #include <base/assert.h>
 #include <base/thread.h>
 #include <runtime/sync.h>
+#include <runtime/thread.h>
 #include <runtime/timer.h>
 }
 
 #include <chrono>
 #include <functional>
+#include <ostream>
 
 namespace rt {
 namespace thread_internal {
@@ -122,6 +124,10 @@ class Thread {
 
 inline bool operator==(Thread::Id x, Thread::Id y) noexcept {
   return x.thread_id_ == y.thread_id_;
+}
+
+inline bool operator!=(Thread::Id x, Thread::Id y) noexcept {
+  return !(x == y);
 }
 
 inline bool operator<(Thread::Id x, Thread::Id y) noexcept {

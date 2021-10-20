@@ -133,7 +133,7 @@ static inline void *smpage_to_addr(struct page *pg)
 static inline struct page *addr_to_page(void *addr)
 {
 	struct page *pg = addr_to_lgpage(addr);
-	assert(pg->flags & PAGE_FLAG_LARGE);
+	sh_assert(pg->flags & PAGE_FLAG_LARGE);
 
 	if (pg->flags & PAGE_FLAG_SHATTERED)
 		return addr_to_smpage(addr);
@@ -173,7 +173,7 @@ static inline physaddr_t addr_to_pa(void *addr)
  */
 static inline struct page *smpage_to_lgpage(struct page *pg)
 {
-	assert(!(pg->flags & PAGE_FLAG_LARGE));
+	sh_assert(!(pg->flags & PAGE_FLAG_LARGE));
 	return addr_to_lgpage((void *)pg);
 }
 

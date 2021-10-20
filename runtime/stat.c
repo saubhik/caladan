@@ -62,7 +62,7 @@ static const char *tc_stat_names[] = {
 
 
 /* must correspond exactly to STAT_* enum definitions in defs.h */
-BUILD_ASSERT(ARRAY_SIZE(stat_names) == STAT_NR);
+BUILD_ASSERT(SH_ARRAY_SIZE(stat_names) == STAT_NR);
 
 static int append_stat(char **pos, char *end, const char *name, uint64_t val)
 {
@@ -104,7 +104,7 @@ static ssize_t stat_write_buf(char *buf, size_t len)
 			return ret;
 	}
 
-	for (j = 0; j < ARRAY_SIZE(tc_stats); j++) {
+	for (j = 0; j < SH_ARRAY_SIZE(tc_stats); j++) {
 		ret = append_stat(&pos, end, tc_stat_names[j], tc_stats[j]);
 		if (ret)
 			return ret;
@@ -213,7 +213,7 @@ static void stat_worker_udp(void *arg)
 			log_err("stat: couldn't generate stat buffer");
 			continue;
 		}
-		assert(len <= payload_size);
+		sh_assert(len <= payload_size);
 
 		ret = udp_write_to(c, buf, len, &raddr);
 		WARN_ON(ret != len);

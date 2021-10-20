@@ -212,13 +212,13 @@ static void arp_update(uint32_t daddr, struct eth_addr dhost)
 		}
 
 		insert_entry(e, idx);
-	} else if (load_acquire(&e->state) == ARP_STATE_STATIC) {
+	} else if (sh_load_acquire(&e->state) == ARP_STATE_STATIC) {
 		spin_unlock_np(&arp_lock);
 		return;
 	}
 	e->eth = dhost;
 	e->ts = microtime();
-	store_release(&e->state, ARP_STATE_VALID);
+	sh_store_release(&e->state, ARP_STATE_VALID);
 	mbufq_merge_to_tail(&q, &e->q);
 	spin_unlock_np(&arp_lock);
 
@@ -300,7 +300,7 @@ int arp_lookup(uint32_t daddr, struct eth_addr *dhost_out, struct mbuf *m)
 	/* hot-path: @daddr hits in ARP cache */
 	rcu_read_lock();
 	e = lookup_entry(idx, daddr);
-	if (likely(e && load_acquire(&e->state) != ARP_STATE_PROBING)) {
+	if (likely(e && sh_load_acquire(&e->state) != ARP_STATE_PROBING)) {
 		*dhost_out = e->eth;
 		rcu_read_unlock();
 		return 0;

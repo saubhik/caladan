@@ -63,7 +63,7 @@ static void handle_sigusr2(int s, siginfo_t *si, void *c)
  */
 void preempt(void)
 {
-	assert(preempt_needed());
+	sh_assert(preempt_needed());
 	clear_preempt_needed();
 	if (preempt_cede)
 		thread_cede();

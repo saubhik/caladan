@@ -47,7 +47,7 @@ static bool is_valid_heap(struct timer_idx *heap, int n)
  */
 static void assert_timer_heap_is_valid(struct kthread *k)
 {
-	assert(is_valid_heap(k->timers, k->timern));
+	sh_assert(is_valid_heap(k->timers, k->timern));
 }
 
 static void sift_up(struct timer_idx *heap, int i)
@@ -176,7 +176,7 @@ bool timer_cancel(struct timer_entry *e)
 	int last;
 
 try_again:
-	k = load_acquire(&e->localk);
+	k = sh_load_acquire(&e->localk);
 	spin_lock_np(&k->timer_lock);
 
 	if (e->localk != k) {

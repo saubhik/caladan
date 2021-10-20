@@ -17,7 +17,7 @@
 /* protects @tcp_conns */
 static DEFINE_SPINLOCK(tcp_lock);
 /* a list of all TCP connections */
-static LIST_HEAD(tcp_conns);
+static SH_LIST_HEAD(tcp_conns);
 
 static void tcp_retransmit(void *arg);
 
@@ -47,7 +47,7 @@ void tcp_timer_update(tcpconn_t *c)
 	if (!list_empty(&c->rxq_ooo))
 		next_timeout = MIN(next_timeout, microtime() + TCP_OOQ_ACK_TIMEOUT);
 
-	store_release(&c->next_timeout, next_timeout);
+	sh_store_release(&c->next_timeout, next_timeout);
 }
 
 /* check for timeouts in a TCP connection */
@@ -129,7 +129,7 @@ static void tcp_worker(void *arg)
 				again = true;
 				break;
 			}
-			if (load_acquire(&c->next_timeout) <= now)
+			if (sh_load_acquire(&c->next_timeout) <= now)
 				tcp_handle_timeouts(c, now);
 		}
 		spin_unlock_np(&tcp_lock);
@@ -181,7 +181,7 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 void tcp_conn_set_state(tcpconn_t *c, int new_state)
 {
 	assert_spin_lock_held(&c->lock);
-	assert(c->pcb.state == TCP_STATE_CLOSED || c->pcb.state < new_state);
+	sh_assert(c->pcb.state == TCP_STATE_CLOSED || c->pcb.state < new_state);
 
 	/* unblock any threads waiting for the connection to be established */
 	if (c->pcb.state < TCP_STATE_ESTABLISHED &&
@@ -504,7 +504,7 @@ int tcp_accept(tcpqueue_t *q, tcpconn_t **c_out)
 	/* otherwise a new connection is available */
 	q->backlog++;
 	c = list_pop(&q->conns, tcpconn_t, queue_link);
-	assert(c != NULL);
+	sh_assert(c != NULL);
 	spin_unlock_np(&q->l);
 
 	*c_out = c;
@@ -885,7 +885,7 @@ ssize_t tcp_readv(tcpconn_t *c, const struct iovec *iov, int iovcnt)
 				i++;
 			}
 
-			assert(i <= iovcnt);
+			sh_assert(i <= iovcnt);
 		} while (mbuf_length(cur) > 0);
 		mbuf_free(cur);
 	}
@@ -906,7 +906,7 @@ ssize_t tcp_readv(tcpconn_t *c, const struct iovec *iov, int iovcnt)
 				i++;
 			}
 
-			assert(mbuf_length(m) > 0);
+			sh_assert(mbuf_length(m) > 0);
 		} while (i < iovcnt);
 	}
 
@@ -957,7 +957,7 @@ static void tcp_write_finish(tcpconn_t *c)
 	struct list_head waiters;
 	struct mbuf *retransmit = NULL;
 
-	assert(c->tx_exclusive == true);
+	sh_assert(c->tx_exclusive == true);
 	list_head_init(&q);
 	list_head_init(&waiters);
 
@@ -1140,7 +1140,7 @@ static int tcp_conn_shutdown_tx(tcpconn_t *c)
 	if (c->tx_closed)
 		return 0;
 
-	assert(c->pcb.state >= TCP_STATE_ESTABLISHED);
+	sh_assert(c->pcb.state >= TCP_STATE_ESTABLISHED);
 	while (c->tx_exclusive)
 		waitq_wait(&c->tx_wq, &c->lock);
 	ret = tcp_tx_ctl(c, TCP_FIN | TCP_ACK, NULL);

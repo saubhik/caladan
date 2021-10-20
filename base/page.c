@@ -42,29 +42,29 @@ static __thread struct tcache_perthread smpage_pt;
 static void page_check(struct page *pg, size_t pgsize)
 {
 	/* since the page is allocated, it must be marked in use */
-	assert(pg->flags & PAGE_FLAG_IN_USE);
+	sh_assert(pg->flags & PAGE_FLAG_IN_USE);
 
 	/* check for unsupported page sizes */
-	assert(pgsize == PGSIZE_4KB || pgsize == PGSIZE_2MB);
+	sh_assert(pgsize == PGSIZE_4KB || pgsize == PGSIZE_2MB);
 
 	/* finally verify the page is configured correctly for its size */
-	assert(page_to_size(pg) == pgsize);
+	sh_assert(page_to_size(pg) == pgsize);
 	if (pgsize == PGSIZE_4KB) {
-		assert(!(pg->flags & PAGE_FLAG_SHATTERED));
+		sh_assert(!(pg->flags & PAGE_FLAG_SHATTERED));
 		pg = smpage_to_lgpage(pg);
-		assert(pg->flags & PAGE_FLAG_LARGE);
-		assert(pg->flags & PAGE_FLAG_SHATTERED);
+		sh_assert(pg->flags & PAGE_FLAG_LARGE);
+		sh_assert(pg->flags & PAGE_FLAG_SHATTERED);
 	}
 
 	/* check that the lgpage is inside the table */
-	assert(pg - page_tbl >= 0 &&
+	sh_assert(pg - page_tbl >= 0 &&
 	       pg - page_tbl < LGPAGE_META_ENTS * NNUMA);
 }
 
 static void page_alloc_check(struct page *pg, size_t pgsize)
 {
 	page_check(pg, pgsize);
-	assert(!kref_released(&pg->ref));
+	sh_assert(!kref_released(&pg->ref));
 
 	/* poison the page */
 	memset(page_to_addr(pg), 0xEF, pgsize);
@@ -73,7 +73,7 @@ static void page_alloc_check(struct page *pg, size_t pgsize)
 static void page_free_check(struct page *pg, size_t pgsize)
 {
 	page_check(pg, pgsize);
-	assert(kref_released(&pg->ref));
+	sh_assert(kref_released(&pg->ref));
 
 	/* poison the page */
 	memset(page_to_addr(pg), 0x89, pgsize);
@@ -121,7 +121,7 @@ static struct page *lgpage_alloc_on_node(int numa_node)
 	struct page *pg;
 	int ret;
 
-	assert(numa_node < NNUMA);
+	sh_assert(numa_node < NNUMA);
 	node = &lgpage_nodes[numa_node];
 
 	spin_lock(&node->lock);
@@ -137,7 +137,7 @@ static struct page *lgpage_alloc_on_node(int numa_node)
 	}
 	spin_unlock(&node->lock);
 
-	assert(!(pg->flags & PAGE_FLAG_IN_USE));
+	sh_assert(!(pg->flags & PAGE_FLAG_IN_USE));
 	ret = lgpage_create(pg, numa_node);
 	if (ret) {
 		log_err_once("page: unable to create 2MB page,"
@@ -153,7 +153,7 @@ static void lgpage_free(struct page *pg)
 	unsigned int numa_node = addr_to_numa_node(lgpage_to_addr(pg));
 	struct lgpage_node *node = &lgpage_nodes[numa_node];
 
-	assert(numa_node < NNUMA);
+	sh_assert(numa_node < NNUMA);
 	lgpage_destroy(pg);
 	spin_lock(&node->lock);
 	list_add(&node->pages, &pg->link);
@@ -188,7 +188,7 @@ static void smpage_free(struct page *pg)
 	void *addr = smpage_to_addr(pg);
 	unsigned int numa_node = addr_to_numa_node(addr);
 
-	assert(numa_node < NNUMA);
+	sh_assert(numa_node < NNUMA);
 	pg->flags = 0;
 
 	if (thread_init_done && thread_numa_node == numa_node) {
@@ -317,7 +317,7 @@ void *page_zalloc_addr(size_t pgsize)
  */
 void page_put_addr(void *addr)
 {
-	assert(is_page_addr(addr));
+	sh_assert(is_page_addr(addr));
 	page_put(addr_to_page(addr));
 }
 

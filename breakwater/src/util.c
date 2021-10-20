@@ -24,7 +24,7 @@ ssize_t tcp_read_full(tcpconn_t *c, void *buf, size_t len)
 		n += ret;
 	}
 
-	assert(n == len);
+	sh_assert(n == len);
 	return n;
 }
 
@@ -45,11 +45,11 @@ ssize_t tcp_write_full(tcpconn_t *c, const void *buf, size_t len)
 		ssize_t ret = tcp_write(c, pos + n, len - n);
 		if (ret < 0)
 			return ret;
-		assert(ret > 0);
+		sh_assert(ret > 0);
 		n += ret;
 	}
 
-	assert(n == len);
+	sh_assert(n == len);
 	return n;
 }
 
@@ -92,7 +92,7 @@ ssize_t tcp_writev_full(tcpconn_t *c, struct iovec *iov, int iovcnt)
 		n = tcp_writev(c, iov, iovcnt);
 		if (n < 0)
 			return n;
-		assert(n > 0);
+		sh_assert(n > 0);
 		len += n;
 	} while (pull_iov(&iov, &iovcnt, n));
 

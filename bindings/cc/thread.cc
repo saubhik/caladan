@@ -4,7 +4,7 @@ namespace rt {
 namespace thread_internal {
 
 // Number of user threads.
-thread_id_t nrus = 0;
+thread_id_t nrus = 1;  // 0 is reserved for the main thread
 
 join_data::join_data(std::function<void()> &&func)
     : done_{false}, waiter_{nullptr}, func_{std::move(func)} {
@@ -78,7 +78,7 @@ void Thread::Detach() {
   spin_lock_np(&join_data_->lock_);
   if (join_data_->done_) {
     spin_unlock_np(&join_data_->lock_);
-    assert(join_data_->waiter_ != nullptr);
+    sh_assert(join_data_->waiter_ != nullptr);
     thread_ready(join_data_->waiter_);
     join_data_ = nullptr;
     return;
@@ -95,7 +95,7 @@ void Thread::Join() {
   spin_lock_np(&join_data_->lock_);
   if (join_data_->done_) {
     spin_unlock_np(&join_data_->lock_);
-    assert(join_data_->waiter_ != nullptr);
+    sh_assert(join_data_->waiter_ != nullptr);
     thread_ready(join_data_->waiter_);
     join_data_ = nullptr;
     return;

@@ -51,7 +51,7 @@
  * ARRAY_SIZE - get the number of elements in a visible array
  * @arr: the array whose size you want.
  */
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define SH_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 /**
  * MAX - picks the maximum of two expressions
@@ -89,7 +89,7 @@
  * Returns an aligned value.
  */
 #define align_up(x, align)			\
-	({assert(is_power_of_two(align));	\
+	({sh_assert(is_power_of_two(align));	\
 	 (((x) - 1) | ((typeof(x))(align) - 1)) + 1;})
 
 /**
@@ -100,7 +100,7 @@
  * Returns an aligned value.
  */
 #define align_down(x, align)			\
-	({assert(is_power_of_two(align));	\
+	({sh_assert(is_power_of_two(align));	\
 	 ((x) & ~((typeof(x))(align) - 1));})
 
 /**

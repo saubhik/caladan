@@ -155,13 +155,13 @@ static inline int dpdk_port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 #if 0
 	/* record the RSS hash key */
 	rss_conf.rss_key = iok_info->rss_key;
-	rss_conf.rss_key_len = ARRAY_SIZE(iok_info->rss_key);
+	rss_conf.rss_key_len = SH_ARRAY_SIZE(iok_info->rss_key);
 	if (strncmp(dev_info.driver_name, "net_mlx4", 8)) {
 		retval = rte_eth_dev_rss_hash_conf_get(port, &rss_conf);
 		if (retval < 0)
 			return retval;
 
-		if (rss_conf.rss_key_len != ARRAY_SIZE(iok_info->rss_key)) {
+		if (rss_conf.rss_key_len != SH_ARRAY_SIZE(iok_info->rss_key)) {
 			log_warn("WARNING: unexpected key length %d, advanced flow steering may not work");
 		}
 	}
@@ -215,7 +215,7 @@ int dpdk_init(void)
 	}
 
 	/* initialize the Environment Abstraction Layer (EAL) */
-	int ret = rte_eal_init(ARRAY_SIZE(argv), argv);
+	int ret = rte_eal_init(SH_ARRAY_SIZE(argv), argv);
 	if (ret < 0) {
 		log_err("dpdk: error with EAL initialization");
 		return -1;
@@ -239,7 +239,7 @@ int dpdk_init(void)
 int dpdk_late_init(void)
 {
 	/* initialize port */
-	dp.port = 0;
+	dp.port = 1;
 	if (dpdk_port_init(dp.port, dp.rx_mbuf_pool) != 0) {
 		log_err("dpdk: cannot init port %"PRIu8 "\n", dp.port);
 		return -1;

@@ -163,7 +163,7 @@ static inline void assert_rsp_aligned(uint64_t rsp)
 	 * The callee assumes a return address has been pushed on the aligned
 	 * stack by CALL, so we look for an 8 byte offset.
 	 */
-	assert(rsp % RSP_ALIGNMENT == sizeof(void *));
+	sh_assert(rsp % RSP_ALIGNMENT == sizeof(void *));
 }
 
 /**

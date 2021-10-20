@@ -49,7 +49,7 @@ ssize_t crpc_send_winupdate(struct cbw_session *s)
 	if (unlikely(ret < 0))
 		return ret;
 
-	assert(ret == sizeof(chdr));
+	sh_assert(ret == sizeof(chdr));
 	s->winu_tx_++;
 
 #if CBW_TRACK_FLOW
@@ -152,7 +152,7 @@ static ssize_t crpc_send_raw(struct cbw_session *s,
 	ret = tcp_writev_full(s->cmn.c, vec, 2);
 	if (unlikely(ret < 0))
 		return ret;
-	assert(ret == sizeof(chdr) + len);
+	sh_assert(ret == sizeof(chdr) + len);
 	s->req_tx_++;
 
 #if CBW_TRACK_FLOW
@@ -294,7 +294,7 @@ again:
 	ret = tcp_read_full(s->cmn.c, &shdr, sizeof(shdr));
 	if (unlikely(ret <= 0))
 		return ret;
-	assert(ret == sizeof(shdr));
+	sh_assert(ret == sizeof(shdr));
 
 	/* parse the server header */
 	if (unlikely(shdr.magic != BW_RESP_MAGIC)) {
@@ -315,13 +315,13 @@ again:
 			ret = tcp_read_full(s->cmn.c, buf, shdr.len);
 			if (unlikely(ret <= 0))
 				return ret;
-			assert(ret == shdr.len);
+			sh_assert(ret == shdr.len);
 			s->resp_rx_++;
 		}
 
 		/* update the window */
 		mutex_lock(&s->lock);
-		assert(s->win_used > 0);
+		sh_assert(s->win_used > 0);
 		s->win_used--;
 		s->win_avail = shdr.win;
 		s->waiting_winupdate = false;
@@ -349,7 +349,7 @@ again:
 			log_warn("crpc: winupdate has nonzero len");
 			return -EINVAL;
 		}
-		assert(shdr.len == 0);
+		sh_assert(shdr.len == 0);
 
 		/* update the window */
 		mutex_lock(&s->lock);

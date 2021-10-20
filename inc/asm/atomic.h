@@ -36,7 +36,7 @@
  * @p: the pointer to store
  * @v: the value to store
  */
-#define store_release(p, v)			\
+#define sh_store_release(p, v)			\
 do {						\
 	BUILD_ASSERT(type_is_native(*p));	\
 	barrier();				\
@@ -47,7 +47,7 @@ do {						\
  * load_acquire - load a native value with acquire fence semantics
  * @p: the pointer to load
  */
-#define load_acquire(p)				\
+#define sh_load_acquire(p)				\
 ({						\
 	BUILD_ASSERT(type_is_native(*p));	\
 	typeof(*p) __p = ACCESS_ONCE(*p);	\

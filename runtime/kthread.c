@@ -74,7 +74,7 @@ int kthread_init_thread(void)
 	spin_lock_np(&klock);
 	mykthread->kthread_idx = nrks;
 	ks[nrks++] = mykthread;
-	assert(nrks <= maxks);
+	sh_assert(nrks <= maxks);
 	spin_unlock_np(&klock);
 
 	kthread_idx = mykthread->kthread_idx;
@@ -104,7 +104,7 @@ static __always_inline void kthread_yield_to_iokernel(void)
 	k->curr_cpu = s;
 	if (k->curr_cpu != last_core)
 		STAT(CORE_MIGRATIONS)++;
-	store_release(&cpu_map[s].recent_kthread, k);
+	sh_store_release(&cpu_map[s].recent_kthread, k);
 }
 
 
@@ -244,7 +244,7 @@ void kthread_wait_to_attach(void)
 	BUG_ON(s < 0);
 
 	k->curr_cpu = s;
-	store_release(&cpu_map[s].recent_kthread, k);
+	sh_store_release(&cpu_map[s].recent_kthread, k);
 
 	/* attach the kthread for the first time */
 	atomic_inc(&runningks);

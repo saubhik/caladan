@@ -98,7 +98,7 @@ int base_init(void)
 	if (ret)
 		return ret;
 
-	for (i = 0; i < ARRAY_SIZE(init_base_levels); i++) {
+	for (i = 0; i < SH_ARRAY_SIZE(init_base_levels); i++) {
 		ret = init_one_level(&init_base_levels[i]);
 		if (ret)
 			return ret;

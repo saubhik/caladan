@@ -44,8 +44,8 @@ struct shm_region {
 static inline shmptr_t
 ptr_to_shmptr(struct shm_region *r, void *ptr, size_t len)
 {
-	assert((uintptr_t)r->base <= (uintptr_t)ptr);
-	assert((uintptr_t)ptr + len <= (uintptr_t)r->base + r->len);
+	sh_assert((uintptr_t)r->base <= (uintptr_t)ptr);
+	sh_assert((uintptr_t)ptr + len <= (uintptr_t)r->base + r->len);
 	return (uintptr_t)ptr - (uintptr_t)r->base;
 }
 
@@ -91,7 +91,7 @@ BUILD_ASSERT(sizeof(struct shm_chain) <= CACHE_LINE_SIZE);
 static inline struct shm_chain *
 shm_chain_get_next(struct shm_region *r, struct shm_chain *c, size_t len)
 {
-	return (struct shm_chain *)shmptr_to_ptr(r, load_acquire(&c->next), len);
+	return (struct shm_chain *)shmptr_to_ptr(r, sh_load_acquire(&c->next), len);
 }
 
 /**
@@ -106,8 +106,8 @@ shm_chain_set_next(struct shm_region *r, struct shm_chain *c,
 		   struct shm_chain *next, size_t len)
 {
 	shmptr_t shmptr = ptr_to_shmptr(r, next, len);
-	assert(c->next == SHMPTR_NULL);
-	store_release(&c->next, shmptr);
+	sh_assert(c->next == SHMPTR_NULL);
+	sh_store_release(&c->next, shmptr);
 }
 
 /**

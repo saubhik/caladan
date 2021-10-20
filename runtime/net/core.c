@@ -52,7 +52,7 @@ static uint32_t compute_flow_affinity(uint8_t ipproto, uint16_t local_port, stru
 		remote.ip, netcfg.addr, local_port | remote.port << 16
 	};
 
-	for (j = 0; j < ARRAY_SIZE(input_tuple); j++) {
+	for (j = 0; j < SH_ARRAY_SIZE(input_tuple); j++) {
 		for (map = input_tuple[j]; map;	map &= (map - 1)) {
 			i = (uint32_t)__builtin_ctz(map);
 			ret ^= hton32(((const uint32_t *)rss_key)[j]) << (31 - i) |
@@ -497,7 +497,7 @@ int net_tx_ip_burst(struct mbuf **ms, int n, uint8_t proto, uint32_t daddr)
 	struct eth_addr dhost;
 	int ret, i;
 
-	assert(n > 0);
+	sh_assert(n > 0);
 
 	/* prepare the mbufs */
 	for (i = 0; i < n; i++) {

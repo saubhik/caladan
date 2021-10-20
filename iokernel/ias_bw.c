@@ -210,7 +210,7 @@ void ias_bw_poll(void)
 	static int state;
 	bool throttle;
 
-	assert(!cfg.nobw);
+	sh_assert(!cfg.nobw);
 
 	/* detect if we're over the bandwidth threshold */
 	throttle = ias_measure_bw() >= ias_bw_thresh;

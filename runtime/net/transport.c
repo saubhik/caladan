@@ -59,7 +59,7 @@ int trans_table_add(struct trans_entry *e)
 	if (e->laddr.port == 0)
 		return -EINVAL;
 
-	assert(e->match == TRANS_MATCH_3TUPLE ||
+	sh_assert(e->match == TRANS_MATCH_3TUPLE ||
 	       e->match == TRANS_MATCH_5TUPLE);
 	if (e->match == TRANS_MATCH_3TUPLE)
 		idx = trans_hash_3tuple(e->proto, e->laddr);
@@ -88,7 +88,7 @@ int trans_table_add(struct trans_entry *e)
 		}
 	}
 	rcu_hlist_add_head(&trans_tbl[idx], &e->link);
-	store_release(&ephemeral_offset, ephemeral_offset + 1);
+	sh_store_release(&ephemeral_offset, ephemeral_offset + 1);
 	spin_unlock_np(&trans_lock);
 
 	return 0;
@@ -109,15 +109,15 @@ int trans_table_add_with_ephemeral_port(struct trans_entry *e)
 	uint16_t num_ephemeral = MAX_EPHEMERAL - MIN_EPHEMERAL + 1;
 	int ret;
 
-	assert(e->match == TRANS_MATCH_3TUPLE ||
+	sh_assert(e->match == TRANS_MATCH_3TUPLE ||
 	       e->match == TRANS_MATCH_5TUPLE);
 	e->laddr.port = 0;
 	if (e->match == TRANS_MATCH_3TUPLE) {
 		offset = trans_hash_3tuple(e->proto, e->laddr) +
-			 load_acquire(&ephemeral_offset);
+			 sh_load_acquire(&ephemeral_offset);
 	} else {
 		offset = trans_hash_5tuple(e->proto, e->laddr, e->raddr) +
-			 load_acquire(&ephemeral_offset);
+			 sh_load_acquire(&ephemeral_offset);
 	}
 
 	while (next_ephemeral < num_ephemeral) {
@@ -159,7 +159,7 @@ static struct trans_entry *trans_lookup(struct mbuf *m)
 	struct netaddr laddr, raddr;
 	uint32_t hash;
 
-	assert(rcu_read_lock_held());
+	sh_assert(rcu_read_lock_held());
 
 	/* set up the network header pointers */
 	mbuf_mark_transport_offset(m);

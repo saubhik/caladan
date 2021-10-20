@@ -20,7 +20,7 @@
 #include <base/thread.h>
 
 static DEFINE_SPINLOCK(tcache_lock);
-static LIST_HEAD(tcache_list);
+static SH_LIST_HEAD(tcache_list);
 
 DEFINE_PERTHREAD(uint64_t, mag_alloc);
 DEFINE_PERTHREAD(uint64_t, mag_free);
@@ -63,7 +63,7 @@ static void tcache_free_mag(struct tcache *tc, struct tcache_hdr *hdr)
 		hdr = hdr->next_item;
 	} while (hdr);
 
-	assert(nr == tc->mag_size);
+	sh_assert(nr == tc->mag_size);
 	tc->ops->free(tc, nr, items);
 	atomic64_dec(&tc->mags_allocated);
 }
@@ -75,8 +75,8 @@ void *__tcache_alloc(struct tcache_perthread *ltc)
 	void *item;
 
 	/* must be out of rounds */
-	assert(ltc->rounds == 0);
-	assert(ltc->loaded == NULL);
+	sh_assert(ltc->rounds == 0);
+	sh_assert(ltc->loaded == NULL);
 
 	/* CASE 1: exchange empty loaded mag with full previous mag */
 	if (ltc->previous) {
@@ -116,8 +116,8 @@ void __tcache_free(struct tcache_perthread *ltc, void *item)
 	struct tcache_hdr *hdr = (struct tcache_hdr *)item;
 
 	/* magazine must be full */
-	assert(ltc->rounds == ltc->capacity);
-	assert(ltc->loaded != NULL);
+	sh_assert(ltc->rounds == ltc->capacity);
+	sh_assert(ltc->loaded != NULL);
 
 	/* CASE 1: exchange empty previous mag with full loaded mag */
 	if (!ltc->previous) {
@@ -159,8 +159,8 @@ struct tcache *tcache_create(const char *name, const struct tcache_ops *ops,
 	struct tcache *tc;
 
 	/* we assume the caller is aware of the tcache size limits */
-	assert(item_size >= TCACHE_MIN_ITEM_SIZE);
-	assert(mag_size <= TCACHE_MAX_MAG_SIZE);
+	sh_assert(item_size >= TCACHE_MIN_ITEM_SIZE);
+	sh_assert(mag_size <= TCACHE_MAX_MAG_SIZE);
 
 	tc = malloc(sizeof(*tc));
 	if (!tc)
