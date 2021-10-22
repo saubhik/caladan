@@ -3,6 +3,7 @@
  */
 
 #include <runtime/poll.h>
+#include <runtime/smalloc.h>
 
 /**
  * poll_init - initializes a polling waiter object
@@ -13,6 +14,37 @@ void poll_init(poll_waiter_t *w)
 	spin_lock_init(&w->lock);
 	list_head_init(&w->triggered);
 	w->waiting_th = NULL;
+}
+
+/**
+ * create_waiter - allocate memory for waiter and initialize it
+ * @w_out: a pointer to store the waiter (if successful)
+ */
+int create_waiter(poll_waiter_t **w_out)
+{
+	poll_waiter_t *w;
+	w = smalloc(sizeof(*w));
+	if (!w)
+		return -ENOMEM;
+	poll_init(w);
+	*w_out = w;
+	return 0;
+}
+
+/**
+ * create_trigger - allocate memory for trigger
+ * @t_out: a pointer to store the trigger (if successful)
+ */
+int create_trigger(poll_trigger_t **t_out)
+{
+	poll_trigger_t *t;
+	t = smalloc(sizeof(*t));
+	if (!t)
+		return -ENOMEM;
+
+	poll_trigger_init(t);
+	*t_out = t;
+	return 0;
 }
 
 /**
@@ -29,6 +61,28 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
 	t->waiter = w;
 	t->triggered = false;
 	t->data = data;
+}
+
+/**
+ * poll_arm_w_sock -  register a trigger with a waiter and a socket
+ * @w: the waiter to register with
+ * @sock_event_head: the list head of triggers associated with the socket
+ * @t: the trigger to register
+ * @cb: the callback called with the trigger fires
+ * @cb_arg: the argument passed to the callback
+ */
+void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
+	poll_trigger_t *t, int event_type, event_callback_fn cb,
+	void* cb_arg) {
+	if (WARN_ON(t->waiter != NULL))
+		return;
+
+	t->waiter = w;
+	t->triggered = false;
+	t->event_type = event_type;
+	t->cb = cb;
+	t->cb_arg = cb_arg;
+	list_add(sock_event_head,&t->sock_link);
 }
 
 /**
@@ -72,6 +126,37 @@ unsigned long poll_wait(poll_waiter_t *w)
 		}
 		w->waiting_th = th;
 		thread_park_and_unlock_np(&w->lock);
+	}
+}
+
+/**
+ * poll_cb_once - loops over all triggered events and calls their callbacks
+ * @w: the waiter to wait on
+ */
+void poll_cb_once(poll_waiter_t *w)
+{
+	poll_trigger_t *t;
+	int cb_counter = 0;
+
+	while (true) {
+		spin_lock_np(&w->lock);
+		t = list_pop(&w->triggered, poll_trigger_t, link);
+
+		if (!t) {
+			spin_unlock_np(&w->lock);
+			break;
+		}
+
+		t->triggered = false;
+		spin_unlock_np(&w->lock);
+		t->cb(t->cb_arg);
+		// TODO: maybe fire the trigger again if the socket's queue
+		// wasn't completely drained? For now, the callback has to drain
+		// the queue because the the evented is no longer triggered.
+
+		/* don't get blocked in this loop and break */
+		if (cb_counter++ > MAX_AT_ONCE)
+			break;
 	}
 }
 
