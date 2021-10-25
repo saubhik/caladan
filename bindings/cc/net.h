@@ -124,7 +124,7 @@ class EventLoop {
     return new EventLoop(w);
   }
 
-  void AddEvent(Event* e, UdpConn *s, event_callback_fn cb, void* args) {
+  void AddEvent(Event* e, UdpConn *s, sh_event_callback_fn cb, void* args) {
     poll_arm_w_sock(w_, s->EventList(), e->GetTrigger(), SEV_READ, cb, args);
   }
 

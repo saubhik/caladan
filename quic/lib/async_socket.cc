@@ -12,7 +12,7 @@ namespace quic {
 
 void AsyncUDPSocket::Init(sa_family_t family) {
   NetworkSocket socket =
-      netops::socket(family, SOCK_DGRAM, family != AF_UNIX ? IPPROTO_UDP : 0);
+      netops::socket(family, SOCK_DGRAM, family != AF_UNIX ? SH_IPPROTO_UDP : 0);
   if (socket == NetworkSocket()) {
     throw AsyncSocketException(AsyncSocketException::NOT_OPEN,
                                "error creating async udp socket", errno);

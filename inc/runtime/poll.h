@@ -20,7 +20,7 @@
 // Maximum number of callbacks to trigger in a single call
 #define MAX_AT_ONCE	100
 
-typedef void(* event_callback_fn) (void * args);
+typedef void(* sh_event_callback_fn) (void * args);
 
 typedef struct poll_waiter {
 	spinlock_t		lock;
@@ -34,7 +34,7 @@ typedef struct poll_trigger {
 	struct poll_waiter	*waiter;
 	bool			triggered;
 	short			event_type;
-	event_callback_fn	cb;
+	sh_event_callback_fn	cb;
 	void*			cb_arg;
 	unsigned long		data;
 } poll_trigger_t;
@@ -48,7 +48,7 @@ extern int create_waiter(poll_waiter_t **w_out);
 extern void poll_init(poll_waiter_t *w);
 extern void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data);
 extern void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
-        poll_trigger_t *t, int event_type, event_callback_fn cb,
+        poll_trigger_t *t, short event_type, sh_event_callback_fn cb,
         void* cb_arg);
 extern void poll_disarm(poll_trigger_t *t);
 extern unsigned long poll_wait(poll_waiter_t *w);

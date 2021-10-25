@@ -6,12 +6,13 @@
 
 #include <base/hash.h>
 #include <base/kref.h>
-#include <runtime/smalloc.h>
+#include <base/log.h>
+#include <runtime/poll.h>
 #include <runtime/rculist.h>
+#include <runtime/smalloc.h>
 #include <runtime/sync.h>
 #include <runtime/thread.h>
 #include <runtime/udp.h>
-#include <runtime/poll.h>
 
 #include "defs.h"
 #include "waitq.h"
@@ -34,7 +35,7 @@ static int udp_send_raw(struct mbuf *m, size_t len,
 	udphdr->chksum = 0;
 
 	/* send the IP packet */
-	return net_tx_ip(m, IPPROTO_UDP, raddr.ip);
+	return net_tx_ip(m, SH_IPPROTO_UDP, raddr.ip);
 }
 
 
@@ -198,7 +199,7 @@ int udp_dial(struct netaddr laddr, struct netaddr raddr, udpconn_t **c_out)
 		return -ENOMEM;
 
 	udp_init_conn(c);
-	trans_init_5tuple(&c->e, IPPROTO_UDP, &udp_conn_ops, laddr, raddr);
+	trans_init_5tuple(&c->e, SH_IPPROTO_UDP, &udp_conn_ops, laddr, raddr);
 
 	if (laddr.port == 0)
 		ret = trans_table_add_with_ephemeral_port(&c->e);
@@ -236,7 +237,7 @@ int udp_listen(struct netaddr laddr, udpconn_t **c_out)
 		return -ENOMEM;
 
 	udp_init_conn(c);
-	trans_init_3tuple(&c->e, IPPROTO_UDP, &udp_conn_ops, laddr);
+	trans_init_3tuple(&c->e, SH_IPPROTO_UDP, &udp_conn_ops, laddr);
 
 	if (laddr.port == 0)
 		ret = trans_table_add_with_ephemeral_port(&c->e);
@@ -650,7 +651,7 @@ int udp_create_spawner(struct netaddr laddr, udpspawn_fn_t fn,
 		return -ENOMEM;
 
 	kref_init(&s->ref);
-	trans_init_3tuple(&s->e, IPPROTO_UDP, &udp_par_ops, laddr);
+	trans_init_3tuple(&s->e, SH_IPPROTO_UDP, &udp_par_ops, laddr);
 	s->fn = fn;
 	ret = trans_table_add(&s->e);
 	if (ret) {
