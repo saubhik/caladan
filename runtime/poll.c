@@ -72,7 +72,7 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
  * @cb_arg: the argument passed to the callback
  */
 void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
-	poll_trigger_t *t, int event_type, event_callback_fn cb,
+	poll_trigger_t *t, short event_type, sh_event_callback_fn cb,
 	void* cb_arg) {
 	if (WARN_ON(t->waiter != NULL))
 		return;
