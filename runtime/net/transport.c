@@ -164,8 +164,8 @@ static struct trans_entry *trans_lookup(struct mbuf *m)
 	/* set up the network header pointers */
 	mbuf_mark_transport_offset(m);
 	iphdr = mbuf_network_hdr(m, *iphdr);
-	if (unlikely(iphdr->proto != IPPROTO_UDP &&
-		     iphdr->proto != IPPROTO_TCP))
+	if (unlikely(iphdr->proto != SH_IPPROTO_UDP &&
+		     iphdr->proto != SH_IPPROTO_TCP))
 		return NULL;
 	l4hdr = (struct l4_hdr *)mbuf_data(m);
 	if (unlikely(mbuf_length(m) < sizeof(*l4hdr)))
@@ -219,7 +219,7 @@ void net_rx_trans(struct mbuf *m)
 	if (unlikely(!e)) {
 		rcu_read_unlock();
 		iphdr = mbuf_network_hdr(m, *iphdr);
-		if (iphdr->proto == IPPROTO_TCP)
+		if (iphdr->proto == SH_IPPROTO_TCP)
 			tcp_rx_closed(m);
 		mbuf_free(m);
 		return;

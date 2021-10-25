@@ -27,7 +27,7 @@ static uint16_t tcp_hdr_chksum(uint32_t local_ip, uint32_t remote_ip,
 		return 0;
 #endif
 
-	return ipv4_phdr_cksum(IPPROTO_TCP, local_ip, remote_ip, len);
+	return ipv4_phdr_cksum(SH_IPPROTO_TCP, local_ip, remote_ip, len);
 }
 
 static __always_inline struct tcp_hdr *
@@ -86,7 +86,7 @@ int tcp_tx_raw_rst(struct netaddr laddr, struct netaddr raddr, tcp_seq seq)
 	tcphdr->sum = tcp_hdr_chksum(laddr.ip, raddr.ip, 0);
 
 	/* transmit packet */
-	ret = net_tx_ip(m, IPPROTO_TCP, raddr.ip);
+	ret = net_tx_ip(m, SH_IPPROTO_TCP, raddr.ip);
 	if (unlikely(ret))
 		mbuf_free(m);
 	return ret;
@@ -126,7 +126,7 @@ int tcp_tx_raw_rst_ack(struct netaddr laddr, struct netaddr raddr,
 	tcphdr->sum = tcp_hdr_chksum(laddr.ip, raddr.ip, 0);
 
 	/* transmit packet */
-	ret = net_tx_ip(m, IPPROTO_TCP, raddr.ip);
+	ret = net_tx_ip(m, SH_IPPROTO_TCP, raddr.ip);
 	if (unlikely(ret))
 		mbuf_free(m);
 	return ret;
@@ -153,7 +153,7 @@ int tcp_tx_ack(tcpconn_t *c)
 
 	/* transmit packet */
 	tcp_debug_egress_pkt(c, m);
-	ret = net_tx_ip(m, IPPROTO_TCP, c->e.raddr.ip);
+	ret = net_tx_ip(m, SH_IPPROTO_TCP, c->e.raddr.ip);
 	if (unlikely(ret))
 		mbuf_free(m);
 	return ret;
@@ -184,7 +184,7 @@ int tcp_tx_probe_window(tcpconn_t *c)
 
 	/* transmit packet */
 	tcp_debug_egress_pkt(c, m);
-	ret = net_tx_ip(m, IPPROTO_TCP, c->e.raddr.ip);
+	ret = net_tx_ip(m, SH_IPPROTO_TCP, c->e.raddr.ip);
 	if (unlikely(ret))
 		mbuf_free(m);
 	return ret;
@@ -249,7 +249,7 @@ int tcp_tx_ctl(tcpconn_t *c, uint8_t flags, const struct tcp_options *opts)
 	atomic_write(&m->ref, 2);
 	m->release = tcp_tx_release_mbuf;
 	tcp_debug_egress_pkt(c, m);
-	ret = net_tx_ip(m, IPPROTO_TCP, c->e.raddr.ip);
+	ret = net_tx_ip(m, SH_IPPROTO_TCP, c->e.raddr.ip);
 	if (unlikely(ret)) {
 		/* pretend the packet was sent */
 		atomic_write(&m->ref, 1);
@@ -331,7 +331,7 @@ ssize_t tcp_tx_send(tcpconn_t *c, const void *buf, size_t len, bool push)
 		tcp_debug_egress_pkt(c, m);
 		m->timestamp = microtime();
 		m->txflags = OLFLAG_TCP_CHKSUM;
-		ret = net_tx_ip(m, IPPROTO_TCP, c->e.raddr.ip);
+		ret = net_tx_ip(m, SH_IPPROTO_TCP, c->e.raddr.ip);
 		if (unlikely(ret)) {
 			/* pretend the packet was sent */
 			atomic_write(&m->ref, 1);
@@ -395,7 +395,7 @@ static int tcp_tx_retransmit_one(tcpconn_t *c, struct mbuf *m)
 
 	/* transmit the packet */
 	tcp_debug_egress_pkt(c, m);
-	ret = net_tx_ip(m, IPPROTO_TCP, c->e.raddr.ip);
+	ret = net_tx_ip(m, SH_IPPROTO_TCP, c->e.raddr.ip);
 	if (unlikely(ret))
 		mbuf_free(m);
 	return ret;

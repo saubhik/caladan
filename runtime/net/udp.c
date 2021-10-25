@@ -6,8 +6,10 @@
 
 #include <base/hash.h>
 #include <base/kref.h>
-#include <runtime/smalloc.h>
+#include <base/log.h>
+#include <runtime/poll.h>
 #include <runtime/rculist.h>
+#include <runtime/smalloc.h>
 #include <runtime/sync.h>
 #include <runtime/thread.h>
 #include <runtime/udp.h>
@@ -33,7 +35,7 @@ static int udp_send_raw(struct mbuf *m, size_t len,
 	udphdr->chksum = 0;
 
 	/* send the IP packet */
-	return net_tx_ip(m, IPPROTO_UDP, raddr.ip);
+	return net_tx_ip(m, SH_IPPROTO_UDP, raddr.ip);
 }
 
 
@@ -44,6 +46,7 @@ static int udp_send_raw(struct mbuf *m, size_t len,
 struct udpconn {
 	struct trans_entry	e;
 	bool			shutdown;
+	bool			non_blocking;
 
 	/* ingress support */
 	spinlock_t		inq_lock;
@@ -62,6 +65,7 @@ struct udpconn {
 
 	struct kref		ref;
 	struct flow_registration		flow;
+	struct list_head			sock_events;
 };
 
 /* handles ingress packets for UDP sockets */
@@ -89,6 +93,18 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 
 	/* wake up a waiter */
 	th = waitq_signal(&c->inq_wq, &c->inq_lock);
+
+	/** if there was no thread waiting for it,
+	 * and the socket is nonblocking, check for
+	 * registered events and trigger them */
+	if (!th && c->non_blocking) {
+		poll_trigger_t *pt;
+		list_for_each(&c->sock_events,pt,sock_link) {
+			if (pt->event_type & SEV_READ)
+				poll_trigger(pt->waiter, pt);
+		}
+	}
+
 	spin_unlock_np(&c->inq_lock);
 
 	waitq_signal_finish(th);
@@ -119,6 +135,7 @@ static const struct trans_ops udp_conn_ops = {
 static void udp_init_conn(udpconn_t *c)
 {
 	c->shutdown = false;
+	c->non_blocking = false;
 
 	/* initialize ingress fields */
 	spin_lock_init(&c->inq_lock);
@@ -136,6 +153,7 @@ static void udp_init_conn(udpconn_t *c)
 	waitq_init(&c->outq_wq);
 
 	kref_init(&c->ref);
+	list_head_init(&c->sock_events);
 }
 
 static void udp_finish_release_conn(struct rcu_head *h)
@@ -181,7 +199,7 @@ int udp_dial(struct netaddr laddr, struct netaddr raddr, udpconn_t **c_out)
 		return -ENOMEM;
 
 	udp_init_conn(c);
-	trans_init_5tuple(&c->e, IPPROTO_UDP, &udp_conn_ops, laddr, raddr);
+	trans_init_5tuple(&c->e, SH_IPPROTO_UDP, &udp_conn_ops, laddr, raddr);
 
 	if (laddr.port == 0)
 		ret = trans_table_add_with_ephemeral_port(&c->e);
@@ -219,7 +237,7 @@ int udp_listen(struct netaddr laddr, udpconn_t **c_out)
 		return -ENOMEM;
 
 	udp_init_conn(c);
-	trans_init_3tuple(&c->e, IPPROTO_UDP, &udp_conn_ops, laddr);
+	trans_init_3tuple(&c->e, SH_IPPROTO_UDP, &udp_conn_ops, laddr);
 
 	if (laddr.port == 0)
 		ret = trans_table_add_with_ephemeral_port(&c->e);
@@ -298,6 +316,13 @@ ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
 	struct mbuf *m;
 
 	spin_lock_np(&c->inq_lock);
+
+	/* if the socket is nonblocking, don't block*/
+	if (mbufq_empty(&c->inq) && !c->inq_err && !c->shutdown &&
+		c->non_blocking) {
+		spin_unlock_np(&c->inq_lock);
+		return 0;
+	}
 
 	/* block until there is an actionable event */
 	while (mbufq_empty(&c->inq) && !c->inq_err && !c->shutdown)
@@ -523,6 +548,21 @@ void udp_close(udpconn_t *c)
 		udp_conn_put(c);
 }
 
+/**
+ * udp_set_nonblocking - set a UDP socket's nonblocking
+ * @c: the socket to set
+ * @block: nonblocking status
+ *
+*/
+void udp_set_nonblocking(udpconn_t *c, bool nonblocking)
+{
+	c->non_blocking = nonblocking;
+}
+
+struct list_head *udp_get_triggers(udpconn_t *c)
+{
+	return &c->sock_events;
+}
 
 /*
  * Parallel API
@@ -611,7 +651,7 @@ int udp_create_spawner(struct netaddr laddr, udpspawn_fn_t fn,
 		return -ENOMEM;
 
 	kref_init(&s->ref);
-	trans_init_3tuple(&s->e, IPPROTO_UDP, &udp_par_ops, laddr);
+	trans_init_3tuple(&s->e, SH_IPPROTO_UDP, &udp_par_ops, laddr);
 	s->fn = fn;
 	ret = trans_table_add(&s->e);
 	if (ret) {
