@@ -82,7 +82,7 @@ void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
 	t->event_type = event_type;
 	t->cb = cb;
 	t->cb_arg = cb_arg;
-	list_add(sock_event_head,&t->sock_link);
+	list_add(sock_event_head, &t->sock_link);
 }
 
 /**

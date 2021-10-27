@@ -36,7 +36,6 @@ int threads;
 netaddr raddr;
 
 constexpr uint64_t kNetbenchPort = 8001;
-constexpr uint64_t kNetbenchPort2 = 8002;
 
 void receive_callback(void * q) {
   int pp;

@@ -11,28 +11,6 @@ extern "C" {
 
 namespace rt {
 
-class Event {
-  friend class EventLoop;
- public:
-  static Event *CreateEvent() {
-    poll_trigger_t *t;
-    int ret = create_trigger(&t);
-    if (ret) return nullptr;
-    return new Event(t);
-  }
-
-  poll_trigger_t *GetTrigger() { return t_; }
-
- private:
-  Event(poll_trigger_t *t) : t_(t) {}
-
-  // disable move and copy.
-  Event(const Event&) = delete;
-  Event& operator=(const Event&) = delete;
-
-  poll_trigger_t *t_;
-};
-
 class NetConn {
  public:
   virtual ~NetConn(){};
@@ -113,32 +91,6 @@ class UdpConn : public NetConn {
   UdpConn &operator=(const UdpConn &) = delete;
 
   udpconn_t *c_;
-};
-
-class EventLoop {
- public:
-  static EventLoop *CreateWaiter() {
-    poll_waiter_t *w;
-    int ret = create_waiter(&w);
-    if (ret) return nullptr;
-    return new EventLoop(w);
-  }
-
-  void AddEvent(Event* e, UdpConn *s, sh_event_callback_fn cb, void* args) {
-    poll_arm_w_sock(w_, s->EventList(), e->GetTrigger(), SEV_READ, cb, args);
-  }
-
-  void LoopCbOnce() {
-    poll_cb_once(w_);
-  }
- private:
-  EventLoop(poll_waiter_t *w) : w_(w) {}
-
-  // disable move and copy.
-  EventLoop(const EventLoop&) = delete;
-  EventLoop& operator=(const EventLoop&) = delete;
-
-  poll_waiter_t *w_;
 };
 
 // TCP connections.
