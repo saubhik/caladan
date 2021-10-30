@@ -36,6 +36,7 @@ public:
   static void AddEvent(Event* event, const struct timeval *tv);
   static void DelEvent(Event* event) { poll_disarm(event->t_); }
 
+  rt::UdpConn* GetSocket() { return this->sock_; }
   void SetEventLoop(EventLoop *evl) { evl_ = evl; }
   bool IsEventRegistered() { return t_->waiter != nullptr; };
 
