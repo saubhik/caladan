@@ -1,7 +1,6 @@
 #include "net.h"
 
 #include <algorithm>
-#include <cstring>
 #include <memory>
 
 namespace {
@@ -34,6 +33,25 @@ size_t SumIOV(const iovec *iov, int iovcnt) {
 }  // namespace
 
 namespace rt {
+
+struct netaddr StringToNetaddr(const std::string &str) {
+  // For IPv4 addresses, the string is of the form "<IP>:<port>"
+  netaddr addr{};
+  str_to_netaddr(str.c_str(), &addr);
+  return addr;
+}
+
+std::string NetaddrToIPString(struct netaddr naddr) {
+  char sip[IP_ADDR_STR_LEN];
+  uint32_t addr = naddr.ip;
+  snprintf(sip, IP_ADDR_STR_LEN, "%d.%d.%d.%d",
+           ((addr >> 24) & 0xff),
+           ((addr >> 16) & 0xff),
+           ((addr >> 8) & 0xff),
+           (addr & 0xff));
+  std::string str(sip);
+  return str;
+}
 
 ssize_t TcpConn::WritevFullRaw(const iovec *iov, int iovcnt) {
   // first try to send without copying the vector

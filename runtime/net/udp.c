@@ -176,6 +176,82 @@ static inline void udp_conn_put(udpconn_t *c)
 }
 
 /**
+ * udp_bind - binds a UDP socket with a local address.
+ * @c: the pointer to the UDP socket
+ * @laddr: the local UDP address
+ *
+ * Returns 0 if success, otherwise fail.
+ */
+int udp_bind(udpconn_t **c, struct netaddr laddr)
+{
+        udpconn_t *s;
+        int ret;
+
+        /* only can support one local IP so far */
+        if (laddr.ip == 0)
+          laddr.ip = netcfg.addr;
+        else if (laddr.ip != netcfg.addr)
+          return -EINVAL;
+
+        s = smalloc(sizeof(*s));
+        if (!s)
+          return -ENOMEM;
+
+        udp_init_conn(s);
+        trans_init_3tuple(&s->e, SH_IPPROTO_UDP, &udp_conn_ops, laddr);
+
+        if (laddr.port == 0)
+          ret = trans_table_add_with_ephemeral_port(&s->e);
+        else
+          ret = trans_table_add(&s->e);
+        if (ret) {
+          sfree(s);
+          return ret;
+        }
+
+        // TODO: Is flow registration required for both ingress & egress?
+        // This was part of udp_listen before. Not sure if bind should
+        // have it.
+        s->flow.kthread_affinity = 0;
+        s->flow.e = &s->e;
+        s->flow.ref = &s->ref;
+        s->flow.release = udp_release_conn_ref;
+        register_flow(&s->flow);
+
+        *c = s;
+
+        return 0;
+}
+
+/**
+ * udp_connect - connects a UDP socket to a remote address
+ * @c: the UDP socket
+ * @raddr: the remote UDP address
+ *
+ * Returns 0 if success, otherwise fail.
+ */
+int udp_connect(udpconn_t **c, struct netaddr raddr)
+{
+        int ret;
+        udpconn_t *s;
+
+        s = *c;
+
+        trans_init_5tuple(&s->e, SH_IPPROTO_UDP, &udp_conn_ops, s->e.laddr, raddr);
+
+        if (s->e.laddr.port == 0)
+          ret = trans_table_add_with_ephemeral_port(&s->e);
+        else
+          ret = trans_table_add(&s->e);
+        if (ret) {
+          sfree(s);
+          return ret;
+        }
+
+        return 0;
+}
+
+/**
  * udp_dial - creates a UDP socket between a local and remote address
  * @laddr: the local UDP address
  * @raddr: the remote UDP address

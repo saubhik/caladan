@@ -3,34 +3,20 @@
 #pragma once
 
 extern "C" {
-#include <base/stddef.h>
+#include <cstddef>
+#include <runtime/poll.h>
 #include <runtime/tcp.h>
 #include <runtime/udp.h>
-#include <runtime/poll.h>
+#include <base/log.h>
 }
 
 #include <string>
 
 namespace rt {
 
-netaddr StringToNetaddr(const std::string &str) {
-  // For IPv4 addresses, the string is of the form "<IP>:<port>"
-  netaddr addr{};
-  str_to_netaddr(str.c_str(), &addr);
-  return addr;
-}
+struct netaddr StringToNetaddr(const std::string &str);
 
-std::string NetaddrToIPString(netaddr naddr) {
-  char sip[IP_ADDR_STR_LEN];
-  uint32_t addr = naddr.ip;
-  snprintf(sip, IP_ADDR_STR_LEN, "%d.%d.%d.%d",
-           ((addr >> 24) & 0xff),
-           ((addr >> 16) & 0xff),
-           ((addr >> 8) & 0xff),
-           (addr & 0xff));
-  std::string str(sip);
-  return str;
-}
+std::string NetaddrToIPString(struct netaddr naddr);
 
 class NetConn {
  public:
@@ -45,7 +31,7 @@ class UdpConn : public NetConn {
 
  public:
   UdpConn() = default;
-  explicit UdpConn(udpconn_t *c) : c_(c) { localAddr_ = nullptr; }
+  explicit UdpConn(udpconn_t *c) : c_(c) {}
   ~UdpConn() override { udp_close(c_); }
 
   // disable move and copy.
@@ -55,26 +41,35 @@ class UdpConn : public NetConn {
   // The maximum possible payload size (with the maximum MTU).
   static constexpr size_t kMaxPayloadSize = UDP_MAX_PAYLOAD_SIZE;
 
+  int Bind(const netaddr *localAddr) {
+    log_info("binding to %d : %d", localAddr->ip, localAddr->port);
+    int ret = udp_bind(&c_, *localAddr);
+    log_info("binding complete!");
+    if (ret) return ret;
+    udp_set_nonblocking(c_, nonBlocking_);
+    return 0;
+  }
+
+  int Connect(const netaddr *remoteAddr) {
+    udp_set_nonblocking(c_, nonBlocking_);
+    return udp_connect(&c_, *remoteAddr);
+  }
+
   // Creates a UDP connection between a local and remote address.
   static UdpConn *Dial(netaddr laddr, netaddr raddr) {
     udpconn_t *c;
     int ret = udp_dial(laddr, raddr, &c);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new UdpConn(c);
-  }
-
-  int Connect(const netaddr *remoteAddr) {
-    if (localAddr_ == nullptr) {
-      return udp_dial({0, 0}, *remoteAddr, &c_);
-    }
-    return udp_dial(*localAddr_, *remoteAddr, &c_);
   }
 
   // Creates a UDP connection that receives all packets on a local port.
   static UdpConn *Listen(netaddr laddr) {
     udpconn_t *c;
     int ret = udp_listen(laddr, &c);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new UdpConn(c);
   }
 
@@ -82,48 +77,57 @@ class UdpConn : public NetConn {
   static size_t PayloadSize() { return static_cast<size_t>(udp_payload_size); }
 
   // Gets head of event list
-  struct list_head *EventList() { return udp_get_triggers(c_); }
-
-  // Set the bind address
-  void Bind(const netaddr *addr) { localAddr_ = addr; }
+  struct list_head *EventList() {
+    return udp_get_triggers(c_);
+  }
 
   // Gets the local UDP address.
-  netaddr LocalAddr() const { return udp_local_addr(c_); }
+  [[nodiscard]] netaddr LocalAddr() const { return udp_local_addr(c_); }
+
   // Gets the remote UDP address.
-  netaddr RemoteAddr() const { return udp_remote_addr(c_); }
+  [[nodiscard]] netaddr RemoteAddr() const { return udp_remote_addr(c_); }
 
   // Adjusts the length of buffer limits.
   int SetBuffers(int read_mbufs, int write_mbufs) {
+    udp_set_nonblocking(c_, nonBlocking_);
     return udp_set_buffers(c_, read_mbufs, write_mbufs);
   }
 
   // Reads a datagram and gets from remote address.
   ssize_t ReadFrom(void *buf, size_t len, netaddr *raddr) {
+    udp_set_nonblocking(c_, nonBlocking_);
     return udp_read_from(c_, buf, len, raddr);
   }
 
   // Writes a datagram and sets to remote address.
   ssize_t WriteTo(const void *buf, size_t len, const netaddr *raddr) {
+    udp_set_nonblocking(c_, nonBlocking_);
     return udp_write_to(c_, buf, len, raddr);
   }
 
   // Reads a datagram.
-  ssize_t Read(void *buf, size_t len) { return udp_read(c_, buf, len); }
+  ssize_t Read(void *buf, size_t len) override {
+    udp_set_nonblocking(c_, nonBlocking_);
+    return udp_read(c_, buf, len);
+  }
 
   // Writes a datagram.
-  ssize_t Write(const void *buf, size_t len) { return udp_write(c_, buf, len); }
+  ssize_t Write(const void *buf, size_t len) override {
+    udp_set_nonblocking(c_, nonBlocking_);
+    return udp_write(c_, buf, len);
+  }
 
   // Shutdown the socket (no more receives).
   void Shutdown() { udp_shutdown(c_); }
 
   // Set the socket's nonblocking state
   void SetNonblocking(bool nonblocking) {
-    udp_set_nonblocking(c_, nonblocking);
+    nonBlocking_ = true;
   }
 
  private:
-  udpconn_t *c_{};
-  const netaddr *localAddr_;
+  udpconn_t *c_;
+  bool nonBlocking_{false};
 };
 
 // TCP connections.
@@ -137,7 +141,8 @@ class TcpConn : public NetConn {
   static TcpConn *DialAffinity(uint32_t affinity, netaddr raddr) {
     tcpconn_t *c;
     int ret = tcp_dial_affinity(affinity, raddr, &c);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new TcpConn(c);
   }
 
@@ -145,7 +150,8 @@ class TcpConn : public NetConn {
   static TcpConn *Dial(netaddr laddr, netaddr raddr) {
     tcpconn_t *c;
     int ret = tcp_dial(laddr, raddr, &c);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new TcpConn(c);
   }
 
@@ -153,7 +159,8 @@ class TcpConn : public NetConn {
   TcpConn *DialAffinity(netaddr raddr) {
     tcpconn_t *c;
     int ret = tcp_dial_conn_affinity(c_, raddr, &c);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new TcpConn(c);
   }
 
@@ -181,7 +188,8 @@ class TcpConn : public NetConn {
     size_t n = 0;
     while (n < len) {
       ssize_t ret = Read(pos + n, len - n);
-      if (ret <= 0) return ret;
+      if (ret <= 0)
+        return ret;
       n += ret;
     }
     sh_assert(n == len);
@@ -194,7 +202,8 @@ class TcpConn : public NetConn {
     size_t n = 0;
     while (n < len) {
       ssize_t ret = Write(pos + n, len - n);
-      if (ret < 0) return ret;
+      if (ret < 0)
+        return ret;
       sh_assert(ret > 0);
       n += ret;
     }
@@ -205,7 +214,8 @@ class TcpConn : public NetConn {
   // Reads exactly a vector of bytes from the TCP stream.
   ssize_t ReadvFull(const iovec *iov, int iovcnt) {
     if (__builtin_constant_p(iovcnt)) {
-      if (iovcnt == 1) return ReadFull(iov[0].iov_base, iov[0].iov_len);
+      if (iovcnt == 1)
+        return ReadFull(iov[0].iov_base, iov[0].iov_len);
     }
     return ReadvFullRaw(iov, iovcnt);
   }
@@ -213,7 +223,8 @@ class TcpConn : public NetConn {
   // Writes exactly a vector of bytes to the TCP stream.
   ssize_t WritevFull(const iovec *iov, int iovcnt) {
     if (__builtin_constant_p(iovcnt)) {
-      if (iovcnt == 1) return WriteFull(iov[0].iov_base, iov[0].iov_len);
+      if (iovcnt == 1)
+        return WriteFull(iov[0].iov_base, iov[0].iov_len);
     }
     return WritevFullRaw(iov, iovcnt);
   }
@@ -245,7 +256,8 @@ class TcpQueue {
   static TcpQueue *Listen(netaddr laddr, int backlog) {
     tcpqueue_t *q;
     int ret = tcp_listen(laddr, backlog, &q);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new TcpQueue(q);
   }
 
@@ -253,7 +265,8 @@ class TcpQueue {
   TcpConn *Accept() {
     tcpconn_t *c;
     int ret = tcp_accept(q_, &c);
-    if (ret) return nullptr;
+    if (ret)
+      return nullptr;
     return new TcpConn(c);
   }
 
@@ -270,4 +283,4 @@ class TcpQueue {
   tcpqueue_t *q_;
 };
 
-}  // namespace rt
+} // namespace rt
