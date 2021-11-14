@@ -27,40 +27,17 @@ class NetConn {
 
 // UDP Connections.
 class UdpConn : public NetConn {
-  friend class EventLoop;
-
  public:
-  UdpConn() = default;
-  explicit UdpConn(udpconn_t *c) : c_(c) {}
-  ~UdpConn() override { udp_close(c_); }
-
-  // disable move and copy.
-  UdpConn(const UdpConn &) = delete;
-  UdpConn &operator=(const UdpConn &) = delete;
+  ~UdpConn() { udp_close(c_); }
 
   // The maximum possible payload size (with the maximum MTU).
   static constexpr size_t kMaxPayloadSize = UDP_MAX_PAYLOAD_SIZE;
-
-  int Bind(const netaddr *localAddr) {
-    log_info("binding to %d : %d", localAddr->ip, localAddr->port);
-    int ret = udp_bind(&c_, *localAddr);
-    log_info("binding complete!");
-    if (ret) return ret;
-    udp_set_nonblocking(c_, nonBlocking_);
-    return 0;
-  }
-
-  int Connect(const netaddr *remoteAddr) {
-    udp_set_nonblocking(c_, nonBlocking_);
-    return udp_connect(&c_, *remoteAddr);
-  }
 
   // Creates a UDP connection between a local and remote address.
   static UdpConn *Dial(netaddr laddr, netaddr raddr) {
     udpconn_t *c;
     int ret = udp_dial(laddr, raddr, &c);
-    if (ret)
-      return nullptr;
+    if (ret) return nullptr;
     return new UdpConn(c);
   }
 
@@ -68,8 +45,7 @@ class UdpConn : public NetConn {
   static UdpConn *Listen(netaddr laddr) {
     udpconn_t *c;
     int ret = udp_listen(laddr, &c);
-    if (ret)
-      return nullptr;
+    if (ret) return nullptr;
     return new UdpConn(c);
   }
 
@@ -82,52 +58,42 @@ class UdpConn : public NetConn {
   }
 
   // Gets the local UDP address.
-  [[nodiscard]] netaddr LocalAddr() const { return udp_local_addr(c_); }
-
+  netaddr LocalAddr() const { return udp_local_addr(c_); }
   // Gets the remote UDP address.
-  [[nodiscard]] netaddr RemoteAddr() const { return udp_remote_addr(c_); }
+  netaddr RemoteAddr() const { return udp_remote_addr(c_); }
 
   // Adjusts the length of buffer limits.
   int SetBuffers(int read_mbufs, int write_mbufs) {
-    udp_set_nonblocking(c_, nonBlocking_);
     return udp_set_buffers(c_, read_mbufs, write_mbufs);
   }
 
   // Reads a datagram and gets from remote address.
   ssize_t ReadFrom(void *buf, size_t len, netaddr *raddr) {
-    udp_set_nonblocking(c_, nonBlocking_);
     return udp_read_from(c_, buf, len, raddr);
   }
 
   // Writes a datagram and sets to remote address.
   ssize_t WriteTo(const void *buf, size_t len, const netaddr *raddr) {
-    udp_set_nonblocking(c_, nonBlocking_);
     return udp_write_to(c_, buf, len, raddr);
   }
 
   // Reads a datagram.
-  ssize_t Read(void *buf, size_t len) override {
-    udp_set_nonblocking(c_, nonBlocking_);
-    return udp_read(c_, buf, len);
-  }
+  ssize_t Read(void *buf, size_t len) { return udp_read(c_, buf, len); }
 
   // Writes a datagram.
-  ssize_t Write(const void *buf, size_t len) override {
-    udp_set_nonblocking(c_, nonBlocking_);
-    return udp_write(c_, buf, len);
-  }
+  ssize_t Write(const void *buf, size_t len) { return udp_write(c_, buf, len); }
 
   // Shutdown the socket (no more receives).
   void Shutdown() { udp_shutdown(c_); }
 
-  // Set the socket's nonblocking state
-  void SetNonblocking(bool nonblocking) {
-    nonBlocking_ = true;
-  }
-
  private:
+  UdpConn(udpconn_t *c) : c_(c) {}
+
+  // disable move and copy.
+  UdpConn(const UdpConn&) = delete;
+  UdpConn& operator=(const UdpConn&) = delete;
+
   udpconn_t *c_;
-  bool nonBlocking_{false};
 };
 
 // TCP connections.
