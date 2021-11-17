@@ -86,12 +86,17 @@ class UdpConn : public NetConn {
   // Shutdown the socket (no more receives).
   void Shutdown() { udp_shutdown(c_); }
 
+  // Set the socket's nonblocking state
+  void SetNonblocking(bool nonblocking) {
+    udp_set_nonblocking(c_, nonblocking);
+  }
+
  private:
   UdpConn(udpconn_t *c) : c_(c) {}
 
   // disable move and copy.
-  UdpConn(const UdpConn&) = delete;
-  UdpConn& operator=(const UdpConn&) = delete;
+  UdpConn(const UdpConn &) = delete;
+  UdpConn &operator=(const UdpConn &) = delete;
 
   udpconn_t *c_;
 };
