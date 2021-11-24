@@ -64,7 +64,6 @@ endif
 
 # must be first
 all: libbase.a libnet.a libruntime.a iokerneld $(test_targets)
-	$(MAKE) -C bindings/cc
 
 libbase.a: $(base_obj)
 	$(AR) rcs $@ $^
