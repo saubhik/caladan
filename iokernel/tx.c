@@ -183,7 +183,12 @@ bool tx_drain_completions(void)
 static int tx_drain_queue(struct thread *t, int n,
 			  const struct tx_net_hdr **hdrs)
 {
-	int i;
+	int i, j;
+  unsigned int pkt_rem, payload_rem;
+  char *payload_ptr;
+  struct tx_net_hdr *hdr, *nhdr;
+
+  j = 0;
 
 	for (i = 0; i < n; i++) {
 		uint64_t cmd;
@@ -198,13 +203,61 @@ static int tx_drain_queue(struct thread *t, int n,
 		/* TODO: need to kill the process? */
 		BUG_ON(cmd != TXPKT_NET_XMIT);
 
-		hdrs[i] = shmptr_to_ptr(&t->p->region, payload,
+		hdr = shmptr_to_ptr(&t->p->region, payload,
 					sizeof(struct tx_net_hdr));
 		/* TODO: need to kill the process? */
-		BUG_ON(!hdrs[i]);
+		BUG_ON(!hdr);
+
+    // tx_net_hdr is 18 bytes.
+    // Headers in hdr->payload is 42 bytes.
+    // Bytes 0 ... 41 are header bytes in hdr->payload.
+    // Bytes 41 ... 10000 are As in hdr->payload.
+    // hdr->len = 10042.
+
+    // log_info("sizeof hdrs[i] is: %lu", sizeof *hdrs[i]);
+    log_info("data length (hdr->len) is: %u", hdr->len);
+    // log_info("hdr->payload[42] is: %c", hdrs[i]->payload[42]);
+    // log_info("hdr->payload[10041] is: %c", hdrs[i]->payload[10041]);
+
+    /* TODO(@saubhik): Implement GSO here. */
+    // payload_ptr: pointer in hdr->payload to copy data from.
+    // pkt_rem: remaining space in MTU-sized packet buffer.
+    // payload_rem: remaining data in hdr->payload to be copied.
+    payload_ptr = hdr->payload + 42;
+    payload_rem = hdr->len - 42;
+    do {
+      // How to allocate memory in t->p->region?
+      pkt_rem = 1500;
+      nhdr = malloc(pkt_rem);
+
+      // Copy tx_net_hdr.
+      memcpy(nhdr, hdr, sizeof(struct tx_net_hdr));
+      pkt_rem -= sizeof(struct tx_net_hdr);
+
+      // Copy payload headers.
+      memcpy(nhdr->payload, hdr->payload, 42);
+      pkt_rem -= 42;
+      nhdr->len = 42;
+
+      // Copy payload data.
+      if (payload_rem <= pkt_rem) {
+        memcpy(nhdr->payload + 42, payload_ptr, payload_rem);
+        nhdr->len += payload_rem;
+        payload_ptr += payload_rem;
+        payload_rem = 0;
+      } else {
+        memcpy(nhdr->payload + 42, payload_ptr, pkt_rem);
+        nhdr->len += pkt_rem;
+        payload_ptr += pkt_rem;
+        payload_rem -= pkt_rem;
+      }
+
+      hdrs[j++] = nhdr;
+      log_info("segment=%d size=%u payload_rem=%u", j, nhdr->len, payload_rem);
+    } while (payload_rem > 0);
 	}
 
-	return i;
+	return j;
 }
 
 

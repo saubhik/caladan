@@ -63,7 +63,12 @@ endif
 endif
 
 # must be first
-all: libbase.a libnet.a libruntime.a iokerneld $(test_targets)
+all:
+	$(MAKE) libs
+	$(MAKE) -C bindings/cc
+	$(MAKE) -C apps/test
+
+libs: libbase.a libnet.a libruntime.a iokerneld $(test_targets)
 
 libbase.a: $(base_obj)
 	$(AR) rcs $@ $^

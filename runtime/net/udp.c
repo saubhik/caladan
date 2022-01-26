@@ -402,8 +402,9 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	struct mbuf *m;
 	void *payload;
 
-	if (len > udp_get_payload_size())
-		return -EMSGSIZE;
+  // TODO(@saubhik): Fix this for GSO.
+	// if (len > udp_get_payload_size())
+	//  	return -EMSGSIZE;
 	if (!raddr) {
 		if (c->e.match == TRANS_MATCH_3TUPLE)
 			return -EDESTADDRREQ;
@@ -427,7 +428,7 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	c->outq_len++;
 	spin_unlock_np(&c->outq_lock);
 
-	m = net_tx_alloc_mbuf();
+	m = net_tx_alloc_mbuf_len(len);
 	if (unlikely(!m))
 		return -ENOBUFS;
 

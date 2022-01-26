@@ -296,27 +296,33 @@ void net_tx_release_mbuf(struct mbuf *m)
  *
  * Returns an mbuf, or NULL if out of memory.
  */
-struct mbuf *net_tx_alloc_mbuf(void)
+struct mbuf *net_tx_alloc_mbuf()
 {
-	struct mbuf *m;
-	unsigned char *buf;
+  return net_tx_alloc_mbuf_len(net_get_mtu());
+}
 
-	preempt_disable();
-	m = tcache_alloc(&perthread_get(net_tx_buf_pt));
-	if (unlikely(!m)) {
-		preempt_enable();
-		log_warn_ratelimited("net: out of tx buffers");
-		return NULL;
-	}
-	preempt_enable();
+struct mbuf *net_tx_alloc_mbuf_len(unsigned int len)
+{
+  struct mbuf *m;
+  unsigned char *buf;
 
-	buf = (unsigned char *)m + MBUF_HEAD_LEN;
-	mbuf_init(m, buf, net_get_mtu(), MBUF_DEFAULT_HEADROOM);
-	m->csum_type = CHECKSUM_TYPE_NEEDED;
-	m->txflags = 0;
-	m->release_data = 0;
-	m->release = net_tx_release_mbuf;
-	return m;
+  preempt_disable();
+  m = tcache_alloc(&perthread_get(net_tx_buf_pt));
+  if (unlikely(!m)) {
+    preempt_enable();
+    log_warn_ratelimited("net: out of tx buffers");
+    return NULL;
+  }
+  preempt_enable();
+
+  buf = (unsigned char *)m + MBUF_HEAD_LEN;
+  // TODO(@saubhik): Think about a better way.
+  mbuf_init(m, buf, len + MBUF_DEFAULT_HEADROOM, MBUF_DEFAULT_HEADROOM);
+  m->csum_type = CHECKSUM_TYPE_NEEDED;
+  m->txflags = 0;
+  m->release_data = 0;
+  m->release = net_tx_release_mbuf;
+  return m;
 }
 
 /* drains overflow queues */
