@@ -3,6 +3,7 @@
  */
 
 #include <string.h>
+#include <math.h>
 
 #include <base/hash.h>
 #include <base/kref.h>
@@ -401,6 +402,10 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	ssize_t ret;
 	struct mbuf *m;
 	void *payload;
+	unsigned int n_pkts;
+	const uint8_t hdrsz = sizeof(struct tx_net_hdr) + sizeof(struct eth_hdr) +
+		sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
+	const uint8_t pkthdrsz = hdrsz - sizeof(struct tx_net_hdr);
 
   // TODO(@saubhik): Fix this for GSO.
 	// if (len > udp_get_payload_size())
@@ -428,12 +433,22 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	c->outq_len++;
 	spin_unlock_np(&c->outq_lock);
 
-	m = net_tx_alloc_mbuf_len(len);
+	// If I want 1,500 B packets, and len = 10,000 B, then I need to send
+	// N = ceil(10,000 / (1,500 - 42)) packets.
+	// 42 B is the total header size = UDP (8 B) + IP (20 B) + Eth (14 B)
+	n_pkts = ceil((double) len / (net_get_mtu() - pkthdrsz));
+	m = net_tx_alloc_mbuf_len(len + n_pkts * hdrsz);
 	if (unlikely(!m))
 		return -ENOBUFS;
 
 	/* write datagram payload */
-	payload = mbuf_put(m, len);
+	/* The buffer will look like (in order from left to right):
+	 * (assuming in total n packets)
+	 * 1. headers for first packet (tx_net_hdr + eth + ip + udp), 60 bytes.
+	 * 2. app data for all packets, maybe 10,000 bytes.
+	 * 3. unallocated space for headers for (n-1) other packets.
+	 */
+	payload = mbuf_put(m, len + (n_pkts - 1) * hdrsz);
 	memcpy(payload, buf, len);
 
 	/* override mbuf release method */

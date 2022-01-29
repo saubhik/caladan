@@ -10,9 +10,11 @@
 #include <rte_tcp.h>
 
 #include <base/log.h>
+#include <net/udp.h>
 #include <iokernel/queue.h>
 
 #include "defs.h"
+#include "base/byteorder.h"
 
 #define TX_PREFETCH_STRIDE 2
 
@@ -180,15 +182,9 @@ bool tx_drain_completions(void)
 
 }
 
-static int tx_drain_queue(struct thread *t, int n,
-			  const struct tx_net_hdr **hdrs)
+static int tx_drain_queue(struct thread *t, int n, struct tx_net_hdr **hdrs)
 {
-	int i, j;
-  unsigned int pkt_rem, payload_rem;
-  char *payload_ptr;
-  struct tx_net_hdr *hdr, *nhdr;
-
-  j = 0;
+	int i;
 
 	for (i = 0; i < n; i++) {
 		uint64_t cmd;
@@ -203,61 +199,13 @@ static int tx_drain_queue(struct thread *t, int n,
 		/* TODO: need to kill the process? */
 		BUG_ON(cmd != TXPKT_NET_XMIT);
 
-		hdr = shmptr_to_ptr(&t->p->region, payload,
+		hdrs[i] = shmptr_to_ptr(&t->p->region, payload,
 					sizeof(struct tx_net_hdr));
 		/* TODO: need to kill the process? */
-		BUG_ON(!hdr);
-
-    // tx_net_hdr is 18 bytes.
-    // Headers in hdr->payload is 42 bytes.
-    // Bytes 0 ... 41 are header bytes in hdr->payload.
-    // Bytes 41 ... 10000 are As in hdr->payload.
-    // hdr->len = 10042.
-
-    // log_info("sizeof hdrs[i] is: %lu", sizeof *hdrs[i]);
-    log_info("data length (hdr->len) is: %u", hdr->len);
-    // log_info("hdr->payload[42] is: %c", hdrs[i]->payload[42]);
-    // log_info("hdr->payload[10041] is: %c", hdrs[i]->payload[10041]);
-
-    /* TODO(@saubhik): Implement GSO here. */
-    // payload_ptr: pointer in hdr->payload to copy data from.
-    // pkt_rem: remaining space in MTU-sized packet buffer.
-    // payload_rem: remaining data in hdr->payload to be copied.
-    payload_ptr = hdr->payload + 42;
-    payload_rem = hdr->len - 42;
-    do {
-      // How to allocate memory in t->p->region?
-      pkt_rem = 1500;
-      nhdr = malloc(pkt_rem);
-
-      // Copy tx_net_hdr.
-      memcpy(nhdr, hdr, sizeof(struct tx_net_hdr));
-      pkt_rem -= sizeof(struct tx_net_hdr);
-
-      // Copy payload headers.
-      memcpy(nhdr->payload, hdr->payload, 42);
-      pkt_rem -= 42;
-      nhdr->len = 42;
-
-      // Copy payload data.
-      if (payload_rem <= pkt_rem) {
-        memcpy(nhdr->payload + 42, payload_ptr, payload_rem);
-        nhdr->len += payload_rem;
-        payload_ptr += payload_rem;
-        payload_rem = 0;
-      } else {
-        memcpy(nhdr->payload + 42, payload_ptr, pkt_rem);
-        nhdr->len += pkt_rem;
-        payload_ptr += pkt_rem;
-        payload_rem -= pkt_rem;
-      }
-
-      hdrs[j++] = nhdr;
-      log_info("segment=%d size=%u payload_rem=%u", j, nhdr->len, payload_rem);
-    } while (payload_rem > 0);
+		BUG_ON(!hdrs[i]);
 	}
 
-	return j;
+	return i;
 }
 
 
@@ -266,7 +214,7 @@ static int tx_drain_queue(struct thread *t, int n,
  */
 bool tx_burst(void)
 {
-	const struct tx_net_hdr *hdrs[IOKERNEL_TX_BURST_SIZE];
+	struct tx_net_hdr *hdrs[IOKERNEL_TX_BURST_SIZE];
 	static struct rte_mbuf *bufs[IOKERNEL_TX_BURST_SIZE];
 	struct thread *threads[IOKERNEL_TX_BURST_SIZE];
 	int i, j, ret, pulltotal = 0;
@@ -299,6 +247,70 @@ full:
 
 	stats[TX_PULLED] += pulltotal;
 
+	/* TODO(@saubhik): Implement GSO here. */
+	char *curr;
+	unsigned int len, segs, m;
+	const uint8_t udp_offset = 34; // (Eth) 14 + (IP) 20
+	struct udp_hdr *udphdr;
+	struct tx_net_hdr *shdr;
+	struct thread *seg_ts[100];
+	const struct tx_net_hdr *seg_hdrs[100];  // TODO(@saubhik): Fix this.
+
+	m = 0;  // number of segmented packets.
+	for (i = 0; i < n_pkts; ++i) {
+		/* Filter small & non-UDP packets. */
+		if (hdrs[i]->len <= 1500) {
+			seg_ts[m] = threads[i];
+			seg_hdrs[m++] = hdrs[i];
+			continue;
+		}
+
+		/* Get actual length of the payload (assuming UDP). */
+		udphdr = (struct udp_hdr *)(hdrs[i]->payload + udp_offset);
+		len = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
+
+		log_info("Total buffer length = %d", hdrs[i]->len);
+		log_info("Length of application data = %d", len);
+
+		/* Get the number of segments. */
+		segs = (hdrs[i]->len + sizeof (struct tx_net_hdr) - len) / 60;
+
+		/* Get the pointer to the last app data chunk. */
+		curr = hdrs[i]->payload + 42;  // pointer to first segment
+		curr += 1458 * (segs - 1);     // pointer to last segment
+
+		/* Perform (segs - 1) memory "moves" (overlapping src & dest). */
+		for (j = 1; j <= segs - 1; ++j) {
+			memmove(curr + (segs - j) * 60, curr,
+							j == 1 ? len - 1458 * (segs - 1) : 1458);
+			curr -= 1458;
+		}
+
+		/* Perform (segs - 1) memory copies for headers. */
+		curr -= 60;
+		for (j = 1; j <= segs - 1; ++j) {
+			memcpy(curr + 1518, curr, 60);
+
+			/* Update tx_net_hdr len. */
+			shdr = (struct tx_net_hdr *) curr;
+			shdr->len = j == segs - 1 ? len - 1458 * j + 42 : 1500;
+
+			/* TODO(@saubhik): Update UDP header len. */
+			/* TODO(@saubhik): Update IP header len. */
+
+			seg_ts[m] = threads[i];
+			seg_hdrs[m++] = shdr;
+
+			curr += 1518;
+		}
+
+		/* Get pointer to the last seg. */
+		seg_ts[m] = threads[i];
+		seg_hdrs[m++] = (struct tx_net_hdr *)curr;
+	}
+
+	n_pkts = m;
+
 	/* allocate mbufs */
 	if (n_pkts - n_bufs > 0) {
 		ret = rte_mempool_get_bulk(tx_mbuf_pool, (void **)&bufs[n_bufs],
@@ -313,8 +325,8 @@ full:
 	/* fill in packet metadata */
 	for (i = n_bufs; i < n_pkts; i++) {
 		if (i + TX_PREFETCH_STRIDE < n_pkts)
-			prefetch(hdrs[i + TX_PREFETCH_STRIDE]);
-		tx_prepare_tx_mbuf(bufs[i], hdrs[i], threads[i]);
+			prefetch(seg_hdrs[i + TX_PREFETCH_STRIDE]);
+		tx_prepare_tx_mbuf(bufs[i], seg_hdrs[i], seg_ts[i]);
 	}
 
 	n_bufs = n_pkts;

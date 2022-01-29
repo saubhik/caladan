@@ -36,7 +36,7 @@ void ServerHandler(void *arg) {
       rcv.append(buffer.cbegin(), buffer.cend());
     } while (ret == MAX_BUF_LENGTH);
 
-    log_info("received %s", rcv.c_str());
+    log_info("received %s, bytes = %ld", rcv.c_str(), ret);
   }
 
   udpConn->Shutdown();
@@ -46,7 +46,7 @@ void ClientHandler(void *arg) {
   std::unique_ptr <rt::UdpConn> udpConn(rt::UdpConn::Dial({0, 0}, raddr));
   if (unlikely(udpConn == nullptr)) panic("couldn't connect to raddr.");
 
-  std::string snd(10000, 'A');
+  std::string snd(1459, 'A');
 
   ssize_t ret = udpConn->Write(&snd[0], snd.size());
   if (ret != static_cast<ssize_t>(snd.size())) {
