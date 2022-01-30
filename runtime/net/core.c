@@ -17,6 +17,7 @@
 
 #define IP_ID_SEED	0x42345323
 #define RX_PREFETCH_STRIDE 2
+#define MAX_BUF_LEN 9000
 
 /* important global state */
 struct net_cfg netcfg __aligned(CACHE_LINE_SIZE);
@@ -631,7 +632,7 @@ int net_init(void)
 	int ret;
 
 	ret = mempool_create(&net_tx_buf_mp, iok.tx_buf, iok.tx_len, PGSIZE_2MB,
-			     align_up(net_get_mtu() + MBUF_HEAD_LEN + MBUF_DEFAULT_HEADROOM,
+			     align_up(MAX_BUF_LEN + MBUF_HEAD_LEN + MBUF_DEFAULT_HEADROOM,
 				      CACHE_LINE_SIZE * 2));
 	if (ret)
 		return ret;

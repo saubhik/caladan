@@ -41,7 +41,7 @@ void ClientHandler(void *arg) {
   std::unique_ptr <rt::UdpConn> udpConn(rt::UdpConn::Dial({0, 0}, raddr));
   if (unlikely(udpConn == nullptr)) panic("couldn't connect to raddr.");
 
-  std::string snd(1460, 'A');
+  std::string snd(2920, 'A');  // 3 packets = 1458 + 1458 + 4.
 
   ssize_t ret = udpConn->Write(&snd[0], snd.size());
   if (ret != static_cast<ssize_t>(snd.size())) {

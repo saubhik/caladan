@@ -20,6 +20,7 @@
 
 #define UDP_IN_DEFAULT_CAP	512
 #define UDP_OUT_DEFAULT_CAP	2048
+#define DIV_CEIL(a, b)  ((a) / (b) + ((a) % (b) != 0))
 
 unsigned int udp_payload_size;
 
@@ -436,7 +437,7 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	// If I want 1,500 B packets, and len = 10,000 B, then I need to send
 	// N = ceil(10,000 / (1,500 - 42)) packets.
 	// 42 B is the total header size = UDP (8 B) + IP (20 B) + Eth (14 B)
-	n_pkts = ceil((double) len / (net_get_mtu() - pkthdrsz));
+	n_pkts = DIV_CEIL(len, (net_get_mtu() - pkthdrsz));
 	m = net_tx_alloc_mbuf_len(len + n_pkts * hdrsz);
 	if (unlikely(!m))
 		return -ENOBUFS;

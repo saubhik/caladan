@@ -63,9 +63,6 @@ static void tx_prepare_tx_mbuf(struct rte_mbuf *buf,
 	buf->pkt_len = net_hdr->len;
 	buf->data_len = net_hdr->len;
 
-	log_info("tx: net_hdr->len=%d, net_hdr->payload=%s", net_hdr->len,
-					 net_hdr->payload + 42);
-
 	buf->ol_flags = 0;
 	if (net_hdr->olflags != 0) {
 		if (net_hdr->olflags & OLFLAG_IP_CHKSUM)
