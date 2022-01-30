@@ -63,6 +63,9 @@ static void tx_prepare_tx_mbuf(struct rte_mbuf *buf,
 	buf->pkt_len = net_hdr->len;
 	buf->data_len = net_hdr->len;
 
+	log_info("tx: net_hdr->len=%d, net_hdr->payload=%s", net_hdr->len,
+					 net_hdr->payload + 42);
+
 	buf->ol_flags = 0;
 	if (net_hdr->olflags != 0) {
 		if (net_hdr->olflags & OLFLAG_IP_CHKSUM)
@@ -291,12 +294,11 @@ full:
 		for (j = 1; j <= segs - 1; ++j) {
 			memcpy(curr + 1518, curr, 60);
 
-			/* Update tx_net_hdr len. */
+			/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
 			shdr = (struct tx_net_hdr *) curr;
-			shdr->len = j == segs - 1 ? len - 1458 * j + 42 : 1500;
-
-			/* TODO(@saubhik): Update UDP header len. */
-			/* TODO(@saubhik): Update IP header len. */
+			shdr->len = 1500;
+			*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
+			*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
 
 			seg_ts[m] = threads[i];
 			seg_hdrs[m++] = shdr;
@@ -304,9 +306,14 @@ full:
 			curr += 1518;
 		}
 
-		/* Get pointer to the last seg. */
+		/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
+		shdr = (struct tx_net_hdr *) curr;
+		shdr->len = len - 1458 * (segs - 1) + 42;
+		*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
+		*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
+
 		seg_ts[m] = threads[i];
-		seg_hdrs[m++] = (struct tx_net_hdr *)curr;
+		seg_hdrs[m++] = shdr;
 	}
 
 	n_pkts = m;

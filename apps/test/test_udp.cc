@@ -13,8 +13,7 @@ extern "C" {
 
 namespace {
 
-const unsigned int MAX_BUF_LENGTH = 4096;
-std::vector<char> buffer(MAX_BUF_LENGTH);
+const unsigned int MAX_BUF_LENGTH = 2048;
 
 netaddr raddr;
 constexpr uint64_t serverPort = 8001;
@@ -28,15 +27,11 @@ void ServerHandler(void *arg) {
 
   while (true) {
     do {
+			std::vector<char> buffer(MAX_BUF_LENGTH);
       ret = udpConn->ReadFrom(&buffer[0], buffer.size(), &raddr);
-      // if (ret != static_cast<ssize_t>(buffer.size())) {
-      //   if (ret == 0 || ret < 0) break;
-      //   panic("read failed, ret = %ld", ret);
-      // }
-      rcv.append(buffer.cbegin(), buffer.cend());
+			std::string rcv(buffer.begin(), buffer.end());
+			log_info("received = %s, bytes = %ld", rcv.c_str(), ret);
     } while (ret == MAX_BUF_LENGTH);
-
-    log_info("received %s, bytes = %ld", rcv.c_str(), ret);
   }
 
   udpConn->Shutdown();
@@ -46,7 +41,7 @@ void ClientHandler(void *arg) {
   std::unique_ptr <rt::UdpConn> udpConn(rt::UdpConn::Dial({0, 0}, raddr));
   if (unlikely(udpConn == nullptr)) panic("couldn't connect to raddr.");
 
-  std::string snd(1459, 'A');
+  std::string snd(1460, 'A');
 
   ssize_t ret = udpConn->Write(&snd[0], snd.size());
   if (ret != static_cast<ssize_t>(snd.size())) {
