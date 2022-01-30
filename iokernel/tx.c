@@ -17,6 +17,9 @@
 #include "base/byteorder.h"
 
 #define TX_PREFETCH_STRIDE 2
+#define TX_MAX_SEGS 100
+#define UDP_OFFSET 34
+#define MTU_SIZE 1500
 
 unsigned int nrts;
 struct thread *ts[NCPU];
@@ -247,30 +250,26 @@ full:
 
 	stats[TX_PULLED] += pulltotal;
 
-	/* TODO(@saubhik): Implement GSO here. */
+	/* UDP GSO */
 	char *curr;
 	unsigned int len, segs, m;
-	const uint8_t udp_offset = 34; // (Eth) 14 + (IP) 20
 	struct udp_hdr *udphdr;
 	struct tx_net_hdr *shdr;
-	struct thread *seg_ts[100];
-	const struct tx_net_hdr *seg_hdrs[100];  // TODO(@saubhik): Fix this.
+	struct thread *seg_ts[TX_MAX_SEGS];
+	const struct tx_net_hdr *seg_hdrs[TX_MAX_SEGS];
 
 	m = 0;  // number of segmented packets.
 	for (i = 0; i < n_pkts; ++i) {
 		/* Filter small & non-UDP packets. */
-		if (hdrs[i]->len <= 1500) {
+		if (hdrs[i]->len <= MTU_SIZE) {
 			seg_ts[m] = threads[i];
 			seg_hdrs[m++] = hdrs[i];
 			continue;
 		}
 
 		/* Get actual length of the payload (assuming UDP). */
-		udphdr = (struct udp_hdr *)(hdrs[i]->payload + udp_offset);
+		udphdr = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
 		len = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
-
-		log_info("Total buffer length = %d", hdrs[i]->len);
-		log_info("Length of application data = %d", len);
 
 		/* Get the number of segments. */
 		segs = (hdrs[i]->len + sizeof (struct tx_net_hdr) - len) / 60;
@@ -293,7 +292,7 @@ full:
 
 			/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
 			shdr = (struct tx_net_hdr *) curr;
-			shdr->len = 1500;
+			shdr->len = MTU_SIZE;
 			*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
 			*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
 

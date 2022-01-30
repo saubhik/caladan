@@ -408,9 +408,9 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 		sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
 	const uint8_t pkthdrsz = hdrsz - sizeof(struct tx_net_hdr);
 
-  // TODO(@saubhik): Fix this for GSO.
-	// if (len > udp_get_payload_size())
-	//  	return -EMSGSIZE;
+	if (len > MAX_BUF_LEN)
+		return -EMSGSIZE;
+
 	if (!raddr) {
 		if (c->e.match == TRANS_MATCH_3TUPLE)
 			return -EDESTADDRREQ;

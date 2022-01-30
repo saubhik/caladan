@@ -17,7 +17,6 @@
 
 #define IP_ID_SEED	0x42345323
 #define RX_PREFETCH_STRIDE 2
-#define MAX_BUF_LEN 9000
 
 /* important global state */
 struct net_cfg netcfg __aligned(CACHE_LINE_SIZE);
