@@ -15,6 +15,10 @@
 
 #include "defs.h"
 
+#ifndef MAX
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#endif
+
 #define IP_ID_SEED	0x42345323
 #define RX_PREFETCH_STRIDE 2
 
@@ -316,7 +320,7 @@ struct mbuf *net_tx_alloc_mbuf_len(unsigned int len)
   preempt_enable();
 
   buf = (unsigned char *)m + MBUF_HEAD_LEN;
-  mbuf_init(m, buf, len, MBUF_DEFAULT_HEADROOM);
+  mbuf_init(m, buf, MAX(len, net_get_mtu()), MBUF_DEFAULT_HEADROOM);
   m->csum_type = CHECKSUM_TYPE_NEEDED;
   m->txflags = 0;
   m->release_data = 0;

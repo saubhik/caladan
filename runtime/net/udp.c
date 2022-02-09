@@ -100,7 +100,6 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 	 * and the socket is nonblocking, check for
 	 * registered events and trigger them */
 	if (!th && c->non_blocking) {
-                log_info("Received something...");
 		poll_trigger_t *pt;
 		list_for_each(&c->sock_events, pt, sock_link) {
 			if (pt->event_type & SEV_READ)
@@ -399,6 +398,7 @@ static void udp_tx_release_mbuf(struct mbuf *m)
 ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
                      const struct netaddr *raddr)
 {
+	// log_info("udp_write_to() with len = %ld", len);
 	struct netaddr addr;
 	ssize_t ret;
 	struct mbuf *m;

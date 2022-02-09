@@ -121,6 +121,12 @@ bool tx_send_completion(void *obj)
 		return true; /* no need to send a completion */
 	}
 
+	/* no need to send completion event for all segments except the last one */
+	if (likely(priv_data->completion_data == 0)) {
+		proc_put(p);
+		return true;
+	}
+
 	/* send completion to runtime */
 	th = priv_data->th;
 	if (th->active) {
@@ -293,6 +299,7 @@ full:
 			/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
 			shdr = (struct tx_net_hdr *) curr;
 			shdr->len = MTU_SIZE;
+			shdr->completion_data = 0;
 			*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
 			*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
 

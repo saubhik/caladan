@@ -30,7 +30,7 @@ void ServerHandler(void *arg) {
 			std::vector<char> buffer(MAX_BUF_LENGTH);
       ret = udpConn->ReadFrom(&buffer[0], buffer.size(), &raddr);
 			std::string rcv(buffer.begin(), buffer.end());
-			log_info("received = %s, bytes = %ld", rcv.c_str(), ret);
+			log_info("received = %ld As, bytes = %ld", rcv.length(), ret);
     } while (ret == MAX_BUF_LENGTH);
   }
 
@@ -41,14 +41,15 @@ void ClientHandler(void *arg) {
   std::unique_ptr <rt::UdpConn> udpConn(rt::UdpConn::Dial({0, 0}, raddr));
   if (unlikely(udpConn == nullptr)) panic("couldn't connect to raddr.");
 
-  std::string snd(2920, 'A');  // 3 packets = 1458 + 1458 + 4.
+	for (int i = 0; i < 10; ++i) {
+		std::string snd(1458 * 5 + 5, 'A');
+		ssize_t ret = udpConn->Write(&snd[0], snd.size());
+		if (ret != static_cast<ssize_t>(snd.size())) {
+			panic("write failed, ret = %ld", ret);
+		}
 
-  ssize_t ret = udpConn->Write(&snd[0], snd.size());
-  if (ret != static_cast<ssize_t>(snd.size())) {
-    panic("write failed, ret = %ld", ret);
-  }
-
-  log_info("sent %s, bytes = %ld", snd.c_str(), ret);
+		log_info("sent %s, bytes = %ld", snd.c_str(), ret);
+	}
 
   udpConn->Shutdown();
 }
