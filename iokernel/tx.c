@@ -17,7 +17,8 @@
 #include "base/byteorder.h"
 
 #define TX_PREFETCH_STRIDE 2
-#define TX_MAX_SEGS 100
+/* A big packet be at most 10 segments (~14580 bytes) */
+#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 10)
 #define UDP_OFFSET 34
 #define MTU_SIZE 1500
 
@@ -224,9 +225,8 @@ static int tx_drain_queue(struct thread *t, int n, struct tx_net_hdr **hdrs)
 bool tx_burst(void)
 {
 	struct tx_net_hdr *hdrs[IOKERNEL_TX_BURST_SIZE];
-	static struct rte_mbuf *bufs[IOKERNEL_TX_BURST_SIZE];
 	struct thread *threads[IOKERNEL_TX_BURST_SIZE];
-	int i, j, ret, pulltotal = 0;
+	unsigned int i, j, ret, pulltotal = 0;
 	static unsigned int pos = 0, n_pkts = 0, n_bufs = 0;
 	struct thread *t;
 
@@ -263,9 +263,10 @@ full:
 	struct tx_net_hdr *shdr;
 	struct thread *seg_ts[TX_MAX_SEGS];
 	const struct tx_net_hdr *seg_hdrs[TX_MAX_SEGS];
+	static struct rte_mbuf *bufs[TX_MAX_SEGS];
 
-	m = 0;  // number of segmented packets.
-	for (i = 0; i < n_pkts; ++i) {
+	m = n_bufs;  // number of segmented packets.
+	for (i = n_bufs; i < n_pkts; ++i) {
 		/* Filter small & non-UDP packets. */
 		if (hdrs[i]->len <= MTU_SIZE) {
 			seg_ts[m] = threads[i];
