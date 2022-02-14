@@ -32,7 +32,7 @@ void ServerHandler(void *arg) {
 		bytesReceived += ret;
 	}
 	udpConn->Shutdown();
-	log_info("received %f Gb/s", ((double)bytesReceived / 134217728) / seconds);
+	log_info("server received @ %f Gb/s", ((double)bytesReceived / 134217728) / seconds);
 }
 
 void ClientHandler(void *arg) {
@@ -41,7 +41,8 @@ void ClientHandler(void *arg) {
 	std::unique_ptr<rt::UdpConn> udpConn(
 		rt::UdpConn::Dial({0, 0}, raddr));
 	if (unlikely(udpConn == nullptr)) panic("couldn't connect to raddr.");
-	std::string snd(1458 * 2, 'a'); // 1458 * 5 = 7290.
+	log_info("Starting sends to server...");
+	std::string snd(1458 * 5, 'a'); // 1458 * 5 = 7290.
 	uint64_t stop_us = rt::MicroTime() + seconds * rt::kSeconds;
 	while (rt::MicroTime() < stop_us) {
 		ret = udpConn->Write(&snd[0], snd.size());
@@ -50,13 +51,15 @@ void ClientHandler(void *arg) {
 		}
 		bytesSent += ret;
 	}
-	snd = std::string("DONE");
-	ret = udpConn->Write(&snd[0], snd.size());
-	if (ret != static_cast<ssize_t>(snd.size())) {
-		panic("write failed, ret = %ld", ret);
+	log_info("client sent @ %f Gb/s", ((double)bytesSent / 134217728) / seconds);
+	while (true) {
+		snd = std::string("DONE");
+		ret = udpConn->Write(&snd[0], snd.size());
+		if (ret != static_cast<ssize_t>(snd.size())) {
+			panic("write failed, ret = %ld", ret);
+		}
 	}
 	udpConn->Shutdown();
-	log_info("sent %f Gb/s", ((double)bytesSent / 134217728) / seconds);
 }
 
 } // namespace
