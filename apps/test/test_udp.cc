@@ -55,7 +55,6 @@ void ClientHandler(void *arg) {
 		if (ret != static_cast<ssize_t>(snd.size())) {
 			panic("write failed, ret = %ld", ret);
 		}
-		bytesSent += ret;
 #else
 		uint32_t pos = 0;
 		while (pos < snd.size()) {
@@ -64,10 +63,10 @@ void ClientHandler(void *arg) {
 			if (ret != static_cast<ssize_t>(sz)) {
 				panic("write failed, ret = %ld", ret);
 			}
-			bytesSent += ret;
 			pos += ret;
 		}
 #endif
+		bytesSent += snd.size();
 	}
 	log_info("client sent %lu bytes @ %f Gb/s",
 					 bytesSent, ((double)bytesSent / 134217728) / seconds);
