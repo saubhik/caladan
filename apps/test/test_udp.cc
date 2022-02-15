@@ -6,9 +6,12 @@ extern "C" {
 #include "net.h"
 #include "timer.h"
 
+#include <algorithm>
 #include <memory>
 #include <iostream>
 #include <vector>
+
+#define GSO 0
 
 
 namespace {
@@ -17,6 +20,7 @@ struct netaddr raddr;
 const unsigned int MAX_BUF_LENGTH = 131072;
 constexpr uint8_t seconds = 60;
 constexpr uint64_t serverPort = 8001;
+constexpr uint16_t maxPktPayload = 1458;
 
 void ServerHandler(void *arg) {
 	std::vector<char> buf(MAX_BUF_LENGTH);
@@ -32,7 +36,8 @@ void ServerHandler(void *arg) {
 		bytesReceived += ret;
 	}
 	udpConn->Shutdown();
-	log_info("server received @ %f Gb/s", ((double)bytesReceived / 134217728) / seconds);
+	log_info("server received %lu bytes @ %f Gb/s",
+					 bytesReceived, ((double)bytesReceived / 134217728) / seconds);
 }
 
 void ClientHandler(void *arg) {
@@ -42,16 +47,30 @@ void ClientHandler(void *arg) {
 		rt::UdpConn::Dial({0, 0}, raddr));
 	if (unlikely(udpConn == nullptr)) panic("couldn't connect to raddr.");
 	log_info("Starting sends to server...");
-	std::string snd(1458 * 5, 'a'); // 1458 * 5 = 7290.
+	std::string snd(1458 * 42, 'a');
 	uint64_t stop_us = rt::MicroTime() + seconds * rt::kSeconds;
 	while (rt::MicroTime() < stop_us) {
+#if GSO
 		ret = udpConn->Write(&snd[0], snd.size());
 		if (ret != static_cast<ssize_t>(snd.size())) {
 			panic("write failed, ret = %ld", ret);
 		}
 		bytesSent += ret;
+#else
+		uint32_t pos = 0;
+		while (pos < snd.size()) {
+			uint32_t sz = std::min<uint32_t>(maxPktPayload, snd.length() - pos);
+			ret = udpConn->Write(&snd[pos],sz);
+			if (ret != static_cast<ssize_t>(sz)) {
+				panic("write failed, ret = %ld", ret);
+			}
+			bytesSent += ret;
+			pos += ret;
+		}
+#endif
 	}
-	log_info("client sent @ %f Gb/s", ((double)bytesSent / 134217728) / seconds);
+	log_info("client sent %lu bytes @ %f Gb/s",
+					 bytesSent, ((double)bytesSent / 134217728) / seconds);
 	while (true) {
 		snd = std::string("DONE");
 		ret = udpConn->Write(&snd[0], snd.size());

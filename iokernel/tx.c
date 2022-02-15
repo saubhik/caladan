@@ -17,8 +17,7 @@
 #include "base/byteorder.h"
 
 #define TX_PREFETCH_STRIDE 2
-/* A big packet be at most 10 segments (~14580 bytes) */
-#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 10)
+#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 50)
 #define UDP_OFFSET 34
 #define MTU_SIZE 1500
 
