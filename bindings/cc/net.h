@@ -91,6 +91,7 @@ class UdpConn : public NetConn {
     udp_set_nonblocking(c_, nonblocking);
   }
 
+	udpconn_t *c_;
  private:
   UdpConn(udpconn_t *c) : c_(c) {}
 
@@ -98,7 +99,6 @@ class UdpConn : public NetConn {
   UdpConn(const UdpConn &) = delete;
   UdpConn &operator=(const UdpConn &) = delete;
 
-  udpconn_t *c_;
 };
 
 // TCP connections.

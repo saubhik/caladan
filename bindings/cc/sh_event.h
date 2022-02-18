@@ -67,7 +67,9 @@ public:
 
   poll_waiter_t *GetWaiter() { return w_; }
 
-  void LoopCbOnce() { poll_cb_once(w_); }
+  int LoopCbOnce() { return poll_cb_once(w_); }
+
+	int LoopCbOnceNonblock() { return poll_cb_once_nonblock(w_); }
 
 private:
   EventLoop(poll_waiter_t *w) : w_(w) {}

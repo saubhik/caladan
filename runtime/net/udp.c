@@ -102,14 +102,27 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 	if (!th && c->non_blocking) {
 		poll_trigger_t *pt;
 		list_for_each(&c->sock_events, pt, sock_link) {
-			if (pt->event_type & SEV_READ)
-				poll_trigger(pt->waiter, pt);
+			if (pt->event_type & SEV_READ) poll_trigger(pt->waiter, pt);
 		}
 	}
 
 	spin_unlock_np(&c->inq_lock);
 
 	waitq_signal_finish(th);
+}
+
+void udp_conn_check_triggers(udpconn_t *c)
+{
+	spin_lock_np(&c->inq_lock);
+
+	if (!mbufq_empty(&c->inq)) {
+		poll_trigger_t *pt;
+		list_for_each(&c->sock_events, pt, sock_link) {
+			if (pt->event_type & SEV_READ) poll_trigger(pt->waiter, pt);
+		}
+	}
+
+	spin_unlock_np(&c->inq_lock);
 }
 
 /* handles network errors for UDP sockets */
