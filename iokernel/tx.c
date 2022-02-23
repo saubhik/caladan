@@ -264,6 +264,11 @@ full:
 	const struct tx_net_hdr *seg_hdrs[TX_MAX_SEGS];
 	static struct rte_mbuf *bufs[TX_MAX_SEGS];
 
+	for (i = 0; i < n_pkts; ++i) {
+			struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
+			log_debug("payload length: %d\n", udphdr_enc->len);
+	}
+
 	m = n_bufs;  // number of segmented packets.
 	for (i = n_bufs; i < n_pkts; ++i) {
 		/* Filter small & non-UDP packets. */
