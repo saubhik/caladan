@@ -16,8 +16,13 @@
 #include "defs.h"
 #include "sched.h"
 
+#include <net/udp.h>
+#include <nettle/aes.h>
+#include "base/byteorder.h"
+
 #define MBUF_CACHE_SIZE 250
 #define RX_PREFETCH_STRIDE 2
+#define UDP_OFFSET 34
 
 
 /*
@@ -88,6 +93,15 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 	return rx_send_to_runtime(p, hdr->rss_hash, RX_NET_RECV, shmptr);
 }
 
+void print_rx_pkt_contents(struct rx_net_hdr *net_hdr) {
+  struct udp_hdr *udphdr = (struct udp_hdr *)(net_hdr->payload + UDP_OFFSET);
+  int pktlen = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
+  uint32_t *udp_data = (char *)udphdr + sizeof(struct udp_hdr);
+  for (int j = 0; (j + 1) * 4 <= pktlen; j++) {
+    log_info("rx: %d\n", udp_data[j]);
+  }
+}
+
 static void rx_one_pkt(struct rte_mbuf *buf)
 {
 	struct rte_ether_hdr *ptr_mac_hdr;
@@ -120,6 +134,7 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 
 		p = (struct proc *)data;
 		net_hdr = rx_prepend_rx_preamble(buf);
+		print_rx_pkt_contents(net_hdr);
 		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
 			STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");
