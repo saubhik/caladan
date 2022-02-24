@@ -23,6 +23,7 @@
 #define MBUF_CACHE_SIZE 250
 #define RX_PREFETCH_STRIDE 2
 #define UDP_OFFSET 34
+#define XOR_SALT 4242
 
 
 /*
@@ -102,6 +103,27 @@ void print_rx_pkt_contents(struct rx_net_hdr *net_hdr) {
   }
 }
 
+void dummy_decrypt(struct rx_net_hdr *hdr) {
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+  for (uint32_t *ptr = (uint32_t *)addr; (ptr + 1) <= (addr + len); ++ptr) {
+    *ptr ^= XOR_SALT;
+  }
+}
+
+// Do in-place encryption of UDP application data
+void do_aes_decrypt(struct rx_net_hdr *hdr) {
+  const static uint64_t aes_key[2] = {4242, 4242};
+  struct aes128_ctx dec_ctx;
+  aes128_set_decrypt_key(&dec_ctx, (uint8_t *)&aes_key);
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  if (len % AES_BLOCK_SIZE) return;
+  char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+  aes128_decrypt(&dec_ctx, len, addr, addr);
+}
+
 static void rx_one_pkt(struct rte_mbuf *buf)
 {
 	struct rte_ether_hdr *ptr_mac_hdr;
@@ -134,7 +156,9 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 
 		p = (struct proc *)data;
 		net_hdr = rx_prepend_rx_preamble(buf);
-		print_rx_pkt_contents(net_hdr);
+		//print_rx_pkt_contents(net_hdr);
+		//dummy_decrypt(net_hdr);
+		do_aes_decrypt(net_hdr);
 		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
 			STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");

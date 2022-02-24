@@ -227,6 +227,28 @@ void process_in_place(void *addr, uint32_t len) {
   }
 }
 
+void dummy_encrypt(struct tx_net_hdr *hdr) {
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+  for (uint32_t *ptr = (uint32_t *)addr; (ptr + 1) <= (addr + len); ++ptr) {
+    *ptr ^= XOR_SALT;
+  }
+}
+
+// Do in-place encryption of UDP application data
+void do_aes_encrypt(struct tx_net_hdr *hdr) {
+  const static uint64_t aes_key[2] = {4242, 4242};
+  struct aes128_ctx enc_ctx;
+  aes128_set_encrypt_key(&enc_ctx, (uint8_t *)&aes_key);
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  if (len % AES_BLOCK_SIZE) return;
+  char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+  aes128_encrypt(&enc_ctx, len, addr, addr);
+}
+
+
 void print_pkt_contents(struct tx_net_hdr *hdr) {
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   struct aes128_ctx ctx;
@@ -287,7 +309,9 @@ full:
 	static struct rte_mbuf *bufs[TX_MAX_SEGS];
 
   	for (i = 0; i < n_pkts; ++i) {
-	  print_pkt_contents(hdrs[i]);
+	  //print_pkt_contents(hdrs[i]);
+	  //dummy_encrypt(hdrs[i]);
+	  do_aes_encrypt(hdrs[i]);
 	}
 
 	m = n_bufs;  // number of segmented packets.
