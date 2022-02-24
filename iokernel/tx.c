@@ -12,6 +12,7 @@
 #include <base/log.h>
 #include <net/udp.h>
 #include <iokernel/queue.h>
+#include <nettle/aes.h>
 
 #include "defs.h"
 #include "base/byteorder.h"
@@ -20,6 +21,7 @@
 #define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 50)
 #define UDP_OFFSET 34
 #define MTU_SIZE 1500
+#define XOR_SALT 4242
 
 unsigned int nrts;
 struct thread *ts[NCPU];
@@ -218,6 +220,14 @@ static int tx_drain_queue(struct thread *t, int n, struct tx_net_hdr **hdrs)
 }
 
 
+void process_in_place(void *addr, uint32_t len) {
+  uint32_t *ptr = NULL;
+  for (ptr = addr; (char *)(ptr + 1) < ((char *)addr + len); ++ptr) {
+    *ptr ^= XOR_SALT;
+  }
+}
+
+
 /*
  * Process a batch of outgoing packets.
  */
@@ -265,8 +275,21 @@ full:
 	static struct rte_mbuf *bufs[TX_MAX_SEGS];
 
 	for (i = 0; i < n_pkts; ++i) {
-			struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
-			log_debug("payload length: %d\n", udphdr_enc->len);
+	  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
+	  struct aes128_ctx ctx;
+	  uint64_t key[2] = {42, 42}; // random "128 bit" key
+	  int pktlen = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+	  aes128_set_encrypt_key(&ctx, &key);
+	  char *udp_data = (char *)udphdr_enc + sizeof(struct udp_hdr);
+	  char some_bytes[129];
+	  for (int j = 0; j < len;) {
+	    int k;
+	    for (j = 0, k = 0; k < 128 && j < len; ++j, ++k) {
+	      some_bytes[k] = udp_data[j];
+	    }
+	    some_bytes[k] = '\0';
+	  }
+	  log_info("bytes: %s\n", some_bytes);
 	}
 
 	m = n_bufs;  // number of segmented packets.

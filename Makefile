@@ -79,7 +79,7 @@ libruntime.a: $(runtime_obj)
 
 iokerneld: $(iokernel_obj) libbase.a libnet.a base/base.ld $(PCM_DEPS)
 	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) libbase.a libnet.a $(DPDK_LIBS) \
-	$(PCM_DEPS) $(PCM_LIBS) -lpthread -lnuma -ldl
+	$(PCM_DEPS) $(PCM_LIBS) -lpthread -lnuma -ldl -lnettle
 
 $(test_targets): $(test_obj) libbase.a libruntime.a libnet.a base/base.ld
 	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS)
