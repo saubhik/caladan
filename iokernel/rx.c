@@ -100,7 +100,7 @@ void print_rx_pkt_contents(struct rx_net_hdr *net_hdr) {
   int pktlen = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
   uint32_t *udp_data = (char *)udphdr + sizeof(struct udp_hdr);
   for (int j = 0; (j + 1) * 4 <= pktlen; j++) {
-    log_info("rx: %d\n", udp_data[j]);
+    log_info("rx: %d", udp_data[j]);
   }
 }
 
@@ -108,7 +108,7 @@ void dummy_decrypt(struct rx_net_hdr *hdr) {
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
   char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
-  for (uint32_t *ptr = (uint32_t *)addr; (ptr + 1) <= (addr + len); ++ptr) {
+  for (uint32_t *ptr = (uint32_t *)addr; (char *)(ptr + 1) <= (addr + len); ++ptr) {
     *ptr ^= XOR_SALT;
   }
 }
@@ -116,14 +116,14 @@ void dummy_decrypt(struct rx_net_hdr *hdr) {
 // Do in-place encryption of UDP application data
 void do_aes_decrypt(struct rx_net_hdr *hdr) {
   const static uint64_t aes_key[2] = {4242, 4242};
-  const static uint32_t iv = {1234, 5679, 9000};
+  const static uint32_t iv[3] = {1234, 5679, 9000};
   struct gcm_aes128_ctx dec_ctx;
   gcm_aes128_set_key(&dec_ctx, (uint8_t *)&aes_key);
   gcm_aes128_set_iv(&dec_ctx, GCM_IV_SIZE, (uint8_t *)&iv);
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
   //if (len % AES_BLOCK_SIZE) return;
-  char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+  uint8_t *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
   gcm_aes128_decrypt(&dec_ctx, len, addr, addr);
   gcm_aes128_digest(&dec_ctx, 0, NULL);
 }
@@ -160,9 +160,9 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 
 		p = (struct proc *)data;
 		net_hdr = rx_prepend_rx_preamble(buf);
-		//print_rx_pkt_contents(net_hdr);
 		//dummy_decrypt(net_hdr);
 		//do_aes_decrypt(net_hdr);
+		//print_rx_pkt_contents(net_hdr);
 		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
 			STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");
@@ -177,6 +177,8 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 		int n_sent = 0;
 
 		net_hdr = rx_prepend_rx_preamble(buf);
+		//do_aes_decrypt(net_hdr);
+		//print_rx_pkt_contents(net_hdr);
 		for (i = 0; i < dp.nr_clients; i++) {
 			success = rx_send_pkt_to_runtime(dp.clients[i], net_hdr);
 			if (success) {
