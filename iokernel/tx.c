@@ -13,6 +13,7 @@
 #include <net/udp.h>
 #include <iokernel/queue.h>
 #include <nettle/aes.h>
+#include <nettle/gcm.h>
 
 #include "defs.h"
 #include "base/byteorder.h"
@@ -239,13 +240,16 @@ void dummy_encrypt(struct tx_net_hdr *hdr) {
 // Do in-place encryption of UDP application data
 void do_aes_encrypt(struct tx_net_hdr *hdr) {
   const static uint64_t aes_key[2] = {4242, 4242};
-  struct aes128_ctx enc_ctx;
-  aes128_set_encrypt_key(&enc_ctx, (uint8_t *)&aes_key);
+  const static uint32_t iv = {1234, 5679, 9000};
+  struct gcm_aes128_ctx enc_ctx;
+  gcm_aes128_set_key(&enc_ctx, (uint8_t *)&aes_key);
+  gcm_aes128_set_iv(&enc_ctx, GCM_IV_SIZE, (uint8_t *)&iv);
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
-  if (len % AES_BLOCK_SIZE) return;
+  //if (len % AES_BLOCK_SIZE) return;
   char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
-  aes128_encrypt(&enc_ctx, len, addr, addr);
+  gcm_aes128_encrypt(&enc_ctx, len, addr, addr);
+  gcm_aes128_digest(&enc_ctx, 0, NULL);
 }
 
 
@@ -311,7 +315,7 @@ full:
   	for (i = 0; i < n_pkts; ++i) {
 	  //print_pkt_contents(hdrs[i]);
 	  //dummy_encrypt(hdrs[i]);
-	  do_aes_encrypt(hdrs[i]);
+	  //do_aes_encrypt(hdrs[i]);
 	}
 
 	m = n_bufs;  // number of segmented packets.

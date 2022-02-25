@@ -18,6 +18,7 @@
 
 #include <net/udp.h>
 #include <nettle/aes.h>
+#include <nettle/gcm.h>
 #include "base/byteorder.h"
 
 #define MBUF_CACHE_SIZE 250
@@ -115,13 +116,16 @@ void dummy_decrypt(struct rx_net_hdr *hdr) {
 // Do in-place encryption of UDP application data
 void do_aes_decrypt(struct rx_net_hdr *hdr) {
   const static uint64_t aes_key[2] = {4242, 4242};
-  struct aes128_ctx dec_ctx;
-  aes128_set_decrypt_key(&dec_ctx, (uint8_t *)&aes_key);
+  const static uint32_t iv = {1234, 5679, 9000};
+  struct gcm_aes128_ctx dec_ctx;
+  gcm_aes128_set_key(&dec_ctx, (uint8_t *)&aes_key);
+  gcm_aes128_set_iv(&dec_ctx, GCM_IV_SIZE, (uint8_t *)&iv);
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
-  if (len % AES_BLOCK_SIZE) return;
+  //if (len % AES_BLOCK_SIZE) return;
   char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
-  aes128_decrypt(&dec_ctx, len, addr, addr);
+  gcm_aes128_decrypt(&dec_ctx, len, addr, addr);
+  gcm_aes128_digest(&dec_ctx, 0, NULL);
 }
 
 static void rx_one_pkt(struct rte_mbuf *buf)
@@ -158,7 +162,7 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 		net_hdr = rx_prepend_rx_preamble(buf);
 		//print_rx_pkt_contents(net_hdr);
 		//dummy_decrypt(net_hdr);
-		do_aes_decrypt(net_hdr);
+		//do_aes_decrypt(net_hdr);
 		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
 			STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");
