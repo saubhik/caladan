@@ -13,7 +13,7 @@
 #include "../defs.h"
 
 /* Maximum buffer for TX packets */
-#define MAX_BUF_LEN 64000
+#define MAX_BUF_LEN 65536
 
 extern struct mempool net_tx_buf_mp;
 

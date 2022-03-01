@@ -411,7 +411,6 @@ static void udp_tx_release_mbuf(struct mbuf *m)
 ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
                      const struct netaddr *raddr)
 {
-	// log_info("udp_write_to() with len = %ld", len);
 	struct netaddr addr;
 	ssize_t ret;
 	struct mbuf *m;
@@ -421,8 +420,10 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 		sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
 	const uint8_t pkthdrsz = hdrsz - sizeof(struct tx_net_hdr);
 
-	if (len > MAX_BUF_LEN)
+	if (len > MAX_BUF_LEN) {
+		log_info("udp_write_to: len = %zu > MAX_BUF_LEN = %d", len, MAX_BUF_LEN);
 		return -EMSGSIZE;
+	}
 
 	if (!raddr) {
 		if (c->e.match == TRANS_MATCH_3TUPLE)
