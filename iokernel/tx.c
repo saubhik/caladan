@@ -17,6 +17,7 @@
 
 #include "defs.h"
 #include "base/byteorder.h"
+#include "../fizz_lib/codeccapi.h"
 
 #define TX_PREFETCH_STRIDE 2
 #define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 50)
@@ -239,33 +240,63 @@ void dummy_encrypt(struct tx_net_hdr *hdr) {
   }
 }
 
+int encrypttest(void) {
+
+	char message[26] = "0123456789";
+	char aad[] = "";
+	char enc_copy[27];
+
+	char key[16] = "permanantdeaths!";
+	char iv[13] = "eyeveeRaNdOm";
+
+	MyCipherC *cipher = MyCipherC_create(key, 16, iv, 12);
+
+	log_err("%s\n", message);
+
+	MyCipherC_encrypt(cipher, (void *)message, (void *)aad, 26, 0, 42);
+
+	memcpy(enc_copy, message, 26); // "send message"
+	enc_copy[26] = '\0';
+
+	log_err("%s\n", enc_copy);
+
+	MyCipherC_decrypt(cipher, (void *)enc_copy, (void *)aad, 26, 0, 42);
+
+	log_err("%s\n", enc_copy);
+
+	MyCipherC_destroy(cipher);
+}
+
+
+
 // Do in-place encryption of UDP application data
-void do_aes_encrypt(struct tx_net_hdr *hdr) {
-  const static uint64_t aes_key[2] = {4242, 4242};
-  const static uint32_t iv[3] = {1234, 5679, 9000};
-  struct gcm_aes128_ctx enc_ctx;
-  gcm_aes128_set_key(&enc_ctx, (uint8_t *)&aes_key);
-  gcm_aes128_set_iv(&enc_ctx, GCM_IV_SIZE, (uint8_t *)&iv);
+void do_encrypt(struct tx_net_hdr *hdr) {
+	char key[17] = "permanantdeaths!";
+	char iv[13] = "eyeveeRaNdOm";
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
   //if (len % AES_BLOCK_SIZE) return;
   uint8_t *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
-  gcm_aes128_encrypt(&enc_ctx, len, addr, addr);
-  gcm_aes128_digest(&enc_ctx, 0, NULL);
+	uint32_t *signature = (uint32_t *)addr;
+	if (signature[0] == 0xFF) {
+		MyCipherC *cipher = MyCipherC_create((void *)key, 16, (void *)iv, 12);
+		MyCipherC_encrypt(cipher, (void *)(signature + 1), (void *)hdr, len - 4, 0, 42);
+		MyCipherC_destroy(cipher);
+	}
 }
 
 
 void print_pkt_contents(struct tx_net_hdr *hdr) {
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
-  struct aes128_ctx ctx;
-  uint64_t key[2] = {42, 42}; // random "128 bit" key
   int pktlen = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
-  aes128_set_encrypt_key(&ctx, &key);
+	int num_entries = pktlen / sizeof(uint32_t);
   uint32_t *udp_data = (char *)udphdr_enc + sizeof(struct udp_hdr);
-  for (int j = 0; (j  + 1)* 4 <= pktlen; j++) {
+	log_info("packet length: %d", pktlen);
+  for (int j = 0; j < num_entries; j++) {
     log_info("tx: %d ", udp_data[j]);
   }
 }
+
 
 
 /*
@@ -278,6 +309,7 @@ bool tx_burst(void)
 	unsigned int i, j, ret, pulltotal = 0;
 	static unsigned int pos = 0, n_pkts = 0, n_bufs = 0;
 	struct thread *t;
+
 
 	/*
 	 * Poll each kthread in each runtime until all have been polled or we
@@ -382,10 +414,10 @@ full:
 		}
 	}
 
-  	for (i = 0; i < n_pkts; ++i) {
-	  //print_pkt_contents(hdrs[i]);
+  for (i = 0; i < n_pkts; ++i) {
+	  print_pkt_contents(hdrs[i]);
 	  //dummy_encrypt(hdrs[i]);
-	  //do_aes_encrypt(seg_hdrs[i]);
+	  do_encrypt(seg_hdrs[i]);
 	}
 
 	/* fill in packet metadata */

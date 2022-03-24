@@ -16,6 +16,13 @@ base_obj = $(base_src:.c=.o)
 net_src = $(wildcard net/*.c)
 net_obj = $(net_src:.c=.o)
 
+fizz_c_src = $(wildcard fizz_lib/*.c)
+fizz_c_obj = $(fizz_c_src:.c=.o)
+fizz_cpp_src = $(wildcard fizz_lib/*.cpp)
+fizz_cpp_obj = $(fizz_cpp_src:.cpp=.o)
+fizz_obj = $(fizz_cpp_obj) 
+fizz_obj += $(fizz_c_obj)
+
 # iokernel - a soft-NIC service
 iokernel_src = $(wildcard iokernel/*.c)
 iokernel_obj = $(iokernel_src:.c=.o)
@@ -62,11 +69,13 @@ DPDK_LIBS += -lrte_pmd_mlx4 -libverbs -lmlx4
 endif
 endif
 
+FIZZ_LIBS = -lfizz -lfolly -lsodium -lgmock -lglog -lssl -lcrypto -ldouble-conversion
+
 # must be first
 all:
 	$(MAKE) libs
 
-libs: libbase.a libnet.a libruntime.a iokerneld $(test_targets)
+libs: libbase.a libnet.a libruntime.a libfizzwrapper.a iokerneld $(test_targets) 
 
 libbase.a: $(base_obj)
 	$(AR) rcs $@ $^
@@ -77,11 +86,15 @@ libnet.a: $(net_obj)
 libruntime.a: $(runtime_obj)
 	$(AR) rcs $@ $^
 
-iokerneld: $(iokernel_obj) libbase.a libnet.a base/base.ld $(PCM_DEPS)
-	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) libbase.a libnet.a $(DPDK_LIBS) \
-	$(PCM_DEPS) $(PCM_LIBS) -lpthread -lnuma -ldl -lnettle
+libfizzwrapper.a: $(fizz_obj)
+	echo "FIZZ OBJECTS ARE:  $(fizz_obj)"
+	$(AR) rcs $@ $^
 
-$(test_targets): $(test_obj) libbase.a libruntime.a libnet.a base/base.ld
+iokerneld: $(iokernel_obj) libbase.a libnet.a libfizzwrapper.a base/base.ld $(PCM_DEPS)
+	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) libbase.a libnet.a libfizzwrapper.a $(DPDK_LIBS) \
+	$(PCM_DEPS) $(PCM_LIBS) -lpthread -lnuma -ldl -lnettle $(FIZZ_LIBS)
+
+$(test_targets): $(test_obj) libbase.a libruntime.a libnet.a libfizzwrapper.a base/base.ld
 	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS)
 
 # general build rules for all targets
@@ -104,6 +117,8 @@ endif
 	@$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 %.o: %.S
 	$(CC) $(CFLAGS) -c $< -o $@
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # prints sparse checker tool output
 sparse: $(src)
@@ -115,5 +130,5 @@ submodules:
 
 .PHONY: clean
 clean:
-	rm -f $(obj) $(dep) libbase.a libnet.a libruntime.a \
+	rm -f $(obj) $(dep) libbase.a libnet.a libruntime.a libfizzwrapper.a\
 	iokerneld $(test_targets)

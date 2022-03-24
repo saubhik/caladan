@@ -20,6 +20,7 @@
 #include <nettle/aes.h>
 #include <nettle/gcm.h>
 #include "base/byteorder.h"
+#include "../fizz_lib/codeccapi.h"
 
 #define MBUF_CACHE_SIZE 250
 #define RX_PREFETCH_STRIDE 2
@@ -99,7 +100,9 @@ void print_rx_pkt_contents(struct rx_net_hdr *net_hdr) {
   struct udp_hdr *udphdr = (struct udp_hdr *)(net_hdr->payload + UDP_OFFSET);
   int pktlen = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
   uint32_t *udp_data = (char *)udphdr + sizeof(struct udp_hdr);
-  for (int j = 0; (j + 1) * 4 <= pktlen; j++) {
+	int num_entries = pktlen / sizeof(uint32_t);
+	log_info("packet length: %d", pktlen);
+  for (int j = 0; j < num_entries; j++) {
     log_info("rx: %d", udp_data[j]);
   }
 }
@@ -113,19 +116,20 @@ void dummy_decrypt(struct rx_net_hdr *hdr) {
   }
 }
 
-// Do in-place encryption of UDP application data
-void do_aes_decrypt(struct rx_net_hdr *hdr) {
-  const static uint64_t aes_key[2] = {4242, 4242};
-  const static uint32_t iv[3] = {1234, 5679, 9000};
-  struct gcm_aes128_ctx dec_ctx;
-  gcm_aes128_set_key(&dec_ctx, (uint8_t *)&aes_key);
-  gcm_aes128_set_iv(&dec_ctx, GCM_IV_SIZE, (uint8_t *)&iv);
+// Do in-place decryption of UDP application data
+void do_decrypt(struct rx_net_hdr *hdr) {
+	static char key[17] = "permanantdeaths!";
+	static char iv[13] = "eyeveeRaNdOm";
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
   //if (len % AES_BLOCK_SIZE) return;
   uint8_t *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
-  gcm_aes128_decrypt(&dec_ctx, len, addr, addr);
-  gcm_aes128_digest(&dec_ctx, 0, NULL);
+	uint32_t *signature = (uint32_t *)addr;
+	if (signature[0] == 0xFF) {
+		MyCipherC *cipher = MyCipherC_create((void *)key, 16, (void *)iv, 12);
+		MyCipherC_decrypt(cipher, (void *)(signature + 1), (void *)hdr, len - 4, 0, 42);
+		MyCipherC_destroy(cipher);
+	}
 }
 
 static void rx_one_pkt(struct rte_mbuf *buf)
@@ -161,8 +165,9 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 		p = (struct proc *)data;
 		net_hdr = rx_prepend_rx_preamble(buf);
 		//dummy_decrypt(net_hdr);
-		//do_aes_decrypt(net_hdr);
-		//print_rx_pkt_contents(net_hdr);
+		do_decrypt(net_hdr);
+		print_rx_pkt_contents(net_hdr);
+
 		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
 			STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");
@@ -177,8 +182,8 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 		int n_sent = 0;
 
 		net_hdr = rx_prepend_rx_preamble(buf);
-		//do_aes_decrypt(net_hdr);
-		//print_rx_pkt_contents(net_hdr);
+		do_decrypt(net_hdr);
+		print_rx_pkt_contents(net_hdr);
 		for (i = 0; i < dp.nr_clients; i++) {
 			success = rx_send_pkt_to_runtime(dp.clients[i], net_hdr);
 			if (success) {

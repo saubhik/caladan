@@ -57,18 +57,23 @@ constexpr uint64_t simplePort = 8001;
 void ServerHandler(void *arg) {
   netaddr raddr;
   ssize_t ret;
-  uint32_t value[17], retval[17];
+  uint32_t value[21], retval[21];
   std::unique_ptr<rt::UdpConn> conn(rt::UdpConn::Listen({0, simplePort}));
   if (conn == nullptr) panic("couldn't listen for connections");
 
   while (true) {
     ret = conn->ReadFrom(&value, sizeof(value), &raddr);
-    if (ret != sizeof(value)) {
-	panic("wrong message size");
+    for (int i = 1; i < 17; i++) {
+      std::cout << value[i] << " ";
     }
-    for (int i = 0; i < 17; i++) {
+    std::cout << std::endl;
+    if (ret != sizeof(value)) {
+	    panic("wrong message size");
+    }
+    for (int i = 1; i < 17; i++) {
       retval[i] = value[i];
     }
+    retval[0] = 0xFF;
     conn->WriteTo(&retval, sizeof(retval), &raddr);
     //rt::Thread([=] { ServerWorker(std::unique_ptr<rt::TcpConn>(conn)); })
     //    .Detach();
@@ -79,16 +84,17 @@ void ClientHandler(void *arg) {
   std::unique_ptr<rt::UdpConn> conn(rt::UdpConn::Dial({0, 0}, raddr));
   if (unlikely(conn == nullptr)) panic("couldn't connect to raddr");
 
-  uint32_t msg[17], res[17] = {0, };
+  uint32_t msg[21], res[21] = {0, };
   log_info("please type uint below:");
   std::cin >> msg[0];
-  for (int i = 0; i < 17; i++) {
+  for (int i = 1; i < 17; i++) {
     msg[i] = msg[0];
   }
+  msg[0] = 0xFF;
   ssize_t ret = conn->Write(&msg, sizeof(msg));
   if (ret != sizeof(msg)) panic("unable to send message");
   ssize_t mret = conn->Read(&res, sizeof(res));
-  for (int i = 0; i < 17; i++) {
+  for (int i = 1; i < 17; i++) {
     if (msg[i] != res[i]) {
       log_info("byte %d: msg: %d, res: %d\n", msg[i], res[i]);
       break;
