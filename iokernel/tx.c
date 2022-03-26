@@ -17,7 +17,7 @@
 #include "base/byteorder.h"
 
 #define TX_PREFETCH_STRIDE 2
-#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 50)
+#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 128)
 #define UDP_OFFSET 34
 #define MTU_SIZE 1500
 
