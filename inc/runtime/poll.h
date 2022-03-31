@@ -8,6 +8,7 @@
 #include <base/list.h>
 #include <runtime/thread.h>
 #include <runtime/sync.h>
+#include <runtime/udp.h>
 
 // Bitmap for different event types (based on libevent)
 #define SEV_TIMEOUT      0x01
@@ -26,6 +27,7 @@ typedef struct poll_waiter {
 	spinlock_t		lock;
 	struct list_head	triggered;
 	thread_t		*waiting_th;
+	uint16_t		counter;
 } poll_waiter_t;
 
 typedef struct poll_trigger {
@@ -37,6 +39,7 @@ typedef struct poll_trigger {
 	sh_event_callback_fn	cb;
 	void*			cb_arg;
 	unsigned long		data;
+	udpconn_t *sock;
 } poll_trigger_t;
 
 
@@ -49,10 +52,11 @@ extern void poll_init(poll_waiter_t *w);
 extern void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data);
 extern void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
         poll_trigger_t *t, short event_type, sh_event_callback_fn cb,
-        void* cb_arg);
+        void* cb_arg, udpconn_t *sock);
 extern void poll_disarm(poll_trigger_t *t);
 extern unsigned long poll_wait(poll_waiter_t *w);
-extern void poll_cb_once(poll_waiter_t *w);
+extern int poll_cb_once(poll_waiter_t *w);
+extern int poll_cb_once_nonblock(poll_waiter_t *w);
 
 /*
  * Trigger API

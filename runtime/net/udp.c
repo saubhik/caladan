@@ -3,6 +3,7 @@
  */
 
 #include <string.h>
+#include <math.h>
 
 #include <base/hash.h>
 #include <base/kref.h>
@@ -19,6 +20,7 @@
 
 #define UDP_IN_DEFAULT_CAP	512
 #define UDP_OUT_DEFAULT_CAP	2048
+#define DIV_CEIL(a, b)  ((a) / (b) + ((a) % (b) != 0))
 
 unsigned int udp_payload_size;
 
@@ -98,17 +100,29 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 	 * and the socket is nonblocking, check for
 	 * registered events and trigger them */
 	if (!th && c->non_blocking) {
-                log_info("Received something...");
 		poll_trigger_t *pt;
 		list_for_each(&c->sock_events, pt, sock_link) {
-			if (pt->event_type & SEV_READ)
-				poll_trigger(pt->waiter, pt);
+			if (pt->event_type & SEV_READ) poll_trigger(pt->waiter, pt);
 		}
 	}
 
 	spin_unlock_np(&c->inq_lock);
 
 	waitq_signal_finish(th);
+}
+
+void udp_conn_check_triggers(udpconn_t *c)
+{
+	spin_lock_np(&c->inq_lock);
+
+	if (!mbufq_empty(&c->inq)) {
+		poll_trigger_t *pt;
+		list_for_each(&c->sock_events, pt, sock_link) {
+			if (pt->event_type & SEV_READ) poll_trigger(pt->waiter, pt);
+		}
+	}
+
+	spin_unlock_np(&c->inq_lock);
 }
 
 /* handles network errors for UDP sockets */
@@ -401,9 +415,16 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	ssize_t ret;
 	struct mbuf *m;
 	void *payload;
+	unsigned int n_pkts;
+	const uint8_t hdrsz = sizeof(struct tx_net_hdr) + sizeof(struct eth_hdr) +
+		sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
+	const uint8_t pkthdrsz = hdrsz - sizeof(struct tx_net_hdr);
 
-	if (len > udp_get_payload_size())
+	if (len > MAX_BUF_LEN) {
+		log_info("udp_write_to: len = %zu > MAX_BUF_LEN = %d", len, MAX_BUF_LEN);
 		return -EMSGSIZE;
+	}
+
 	if (!raddr) {
 		if (c->e.match == TRANS_MATCH_3TUPLE)
 			return -EDESTADDRREQ;
@@ -427,12 +448,22 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	c->outq_len++;
 	spin_unlock_np(&c->outq_lock);
 
-	m = net_tx_alloc_mbuf();
+	// If I want 1,500 B packets, and len = 10,000 B, then I need to send
+	// N = ceil(10,000 / (1,500 - 42)) packets.
+	// 42 B is the total header size = UDP (8 B) + IP (20 B) + Eth (14 B)
+	n_pkts = DIV_CEIL(len, (net_get_mtu() - pkthdrsz));
+	m = net_tx_alloc_mbuf_len(len + n_pkts * hdrsz);
 	if (unlikely(!m))
 		return -ENOBUFS;
 
 	/* write datagram payload */
-	payload = mbuf_put(m, len);
+	/* The buffer will look like (in order from left to right):
+	 * (assuming in total n packets)
+	 * 1. headers for first packet (tx_net_hdr + eth + ip + udp), 60 bytes.
+	 * 2. app data for all packets, maybe 10,000 bytes.
+	 * 3. unallocated space for headers for (n-1) other packets.
+	 */
+	payload = mbuf_put(m, len + (n_pkts - 1) * hdrsz);
 	memcpy(payload, buf, len);
 
 	/* override mbuf release method */

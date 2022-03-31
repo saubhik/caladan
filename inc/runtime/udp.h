@@ -50,6 +50,7 @@ extern void udp_close(udpconn_t *c);
 
 extern void udp_set_nonblocking(udpconn_t *c, bool nonblocking);
 extern struct list_head *udp_get_triggers(udpconn_t *c);
+extern void udp_conn_check_triggers(udpconn_t *c);
 
 /*
  * UDP Parallel API

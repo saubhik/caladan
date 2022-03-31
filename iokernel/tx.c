@@ -10,11 +10,16 @@
 #include <rte_tcp.h>
 
 #include <base/log.h>
+#include <net/udp.h>
 #include <iokernel/queue.h>
 
 #include "defs.h"
+#include "base/byteorder.h"
 
 #define TX_PREFETCH_STRIDE 2
+#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 128)
+#define UDP_OFFSET 34
+#define MTU_SIZE 1500
 
 unsigned int nrts;
 struct thread *ts[NCPU];
@@ -116,6 +121,12 @@ bool tx_send_completion(void *obj)
 		return true; /* no need to send a completion */
 	}
 
+	/* no need to send completion event for all segments except the last one */
+	if (likely(priv_data->completion_data == 0)) {
+		proc_put(p);
+		return true;
+	}
+
 	/* send completion to runtime */
 	th = priv_data->th;
 	if (th->active) {
@@ -180,8 +191,7 @@ bool tx_drain_completions(void)
 
 }
 
-static int tx_drain_queue(struct thread *t, int n,
-			  const struct tx_net_hdr **hdrs)
+static int tx_drain_queue(struct thread *t, int n, struct tx_net_hdr **hdrs)
 {
 	int i;
 
@@ -213,10 +223,9 @@ static int tx_drain_queue(struct thread *t, int n,
  */
 bool tx_burst(void)
 {
-	const struct tx_net_hdr *hdrs[IOKERNEL_TX_BURST_SIZE];
-	static struct rte_mbuf *bufs[IOKERNEL_TX_BURST_SIZE];
+	struct tx_net_hdr *hdrs[IOKERNEL_TX_BURST_SIZE];
 	struct thread *threads[IOKERNEL_TX_BURST_SIZE];
-	int i, j, ret, pulltotal = 0;
+	unsigned int i, j, ret, pulltotal = 0;
 	static unsigned int pos = 0, n_pkts = 0, n_bufs = 0;
 	struct thread *t;
 
@@ -246,6 +255,72 @@ full:
 
 	stats[TX_PULLED] += pulltotal;
 
+	/* UDP GSO */
+	char *curr;
+	unsigned int len, segs, m;
+	struct udp_hdr *udphdr;
+	struct tx_net_hdr *shdr;
+	struct thread *seg_ts[TX_MAX_SEGS];
+	const struct tx_net_hdr *seg_hdrs[TX_MAX_SEGS];
+	static struct rte_mbuf *bufs[TX_MAX_SEGS];
+
+	m = n_bufs;  // number of segmented packets.
+	for (i = n_bufs; i < n_pkts; ++i) {
+		/* Filter small & non-UDP packets. */
+		if (hdrs[i]->len <= MTU_SIZE) {
+			seg_ts[m] = threads[i];
+			seg_hdrs[m++] = hdrs[i];
+			continue;
+		}
+
+		/* Get actual length of the payload (assuming UDP). */
+		udphdr = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
+		len = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
+
+		/* Get the number of segments. */
+		segs = (hdrs[i]->len + sizeof (struct tx_net_hdr) - len) / 60;
+
+		/* Get the pointer to the last app data chunk. */
+		curr = hdrs[i]->payload + 42;  // pointer to first segment
+		curr += 1458 * (segs - 1);     // pointer to last segment
+
+		/* Perform (segs - 1) memory "moves" (overlapping src & dest). */
+		for (j = 1; j <= segs - 1; ++j) {
+			memmove(curr + (segs - j) * 60, curr,
+							j == 1 ? len - 1458 * (segs - 1) : 1458);
+			curr -= 1458;
+		}
+
+		/* Perform (segs - 1) memory copies for headers. */
+		curr -= 60;
+		for (j = 1; j <= segs - 1; ++j) {
+			memcpy(curr + 1518, curr, 60);
+
+			/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
+			shdr = (struct tx_net_hdr *) curr;
+			shdr->len = MTU_SIZE;
+			shdr->completion_data = 0;
+			*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
+			*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
+
+			seg_ts[m] = threads[i];
+			seg_hdrs[m++] = shdr;
+
+			curr += 1518;
+		}
+
+		/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
+		shdr = (struct tx_net_hdr *) curr;
+		shdr->len = len - 1458 * (segs - 1) + 42;
+		*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
+		*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
+
+		seg_ts[m] = threads[i];
+		seg_hdrs[m++] = shdr;
+	}
+
+	n_pkts = m;
+
 	/* allocate mbufs */
 	if (n_pkts - n_bufs > 0) {
 		ret = rte_mempool_get_bulk(tx_mbuf_pool, (void **)&bufs[n_bufs],
@@ -260,8 +335,8 @@ full:
 	/* fill in packet metadata */
 	for (i = n_bufs; i < n_pkts; i++) {
 		if (i + TX_PREFETCH_STRIDE < n_pkts)
-			prefetch(hdrs[i + TX_PREFETCH_STRIDE]);
-		tx_prepare_tx_mbuf(bufs[i], hdrs[i], threads[i]);
+			prefetch(seg_hdrs[i + TX_PREFETCH_STRIDE]);
+		tx_prepare_tx_mbuf(bufs[i], seg_hdrs[i], seg_ts[i]);
 	}
 
 	n_bufs = n_pkts;

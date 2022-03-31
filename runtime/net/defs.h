@@ -12,6 +12,9 @@
 
 #include "../defs.h"
 
+/* Maximum buffer for TX packets */
+#define MAX_BUF_LEN 131072
+
 extern struct mempool net_tx_buf_mp;
 
 
@@ -44,7 +47,8 @@ void net_rx_batch(struct mbuf **ms, unsigned int nr);
 
 extern int arp_lookup(uint32_t daddr, struct eth_addr *dhost_out,
 		      struct mbuf *m) __must_use_return;
-extern struct mbuf *net_tx_alloc_mbuf(void);
+extern struct mbuf *net_tx_alloc_mbuf();
+extern struct mbuf *net_tx_alloc_mbuf_len(unsigned int len);
 extern void net_tx_release_mbuf(struct mbuf *m);
 extern void net_tx_eth(struct mbuf *m, uint16_t proto,
 		       struct eth_addr dhost);

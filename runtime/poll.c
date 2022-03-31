@@ -4,6 +4,7 @@
 
 #include <runtime/poll.h>
 #include <runtime/smalloc.h>
+#include "net/mbufq.h"
 
 /**
  * poll_init - initializes a polling waiter object
@@ -14,6 +15,7 @@ void poll_init(poll_waiter_t *w)
 	spin_lock_init(&w->lock);
 	list_head_init(&w->triggered);
 	w->waiting_th = NULL;
+	w->counter = 0;
 }
 
 /**
@@ -61,6 +63,10 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
 	t->waiter = w;
 	t->triggered = false;
 	t->data = data;
+
+	spin_lock_np(&w->lock);
+	w->counter++;
+	spin_unlock_np(&w->lock);
 }
 
 /**
@@ -73,7 +79,7 @@ void poll_arm(poll_waiter_t *w, poll_trigger_t *t, unsigned long data)
  */
 void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
 	poll_trigger_t *t, short event_type, sh_event_callback_fn cb,
-	void* cb_arg) {
+	void* cb_arg, udpconn_t *sock) {
 	if (WARN_ON(t->waiter != NULL))
 		return;
 
@@ -82,7 +88,12 @@ void poll_arm_w_sock(poll_waiter_t *w, struct list_head *sock_event_head,
 	t->event_type = event_type;
 	t->cb = cb;
 	t->cb_arg = cb_arg;
+	t->sock = sock;
 	list_add(sock_event_head, &t->sock_link);
+
+	spin_lock_np(&w->lock);
+	w->counter++;
+	spin_unlock_np(&w->lock);
 }
 
 /**
@@ -101,6 +112,7 @@ void poll_disarm(poll_trigger_t *t)
 		list_del(&t->link);
 		t->triggered = false;
 	}
+	w->counter--;
 	spin_unlock_np(&w->lock);
 
 	t->waiter = NULL;
@@ -133,30 +145,70 @@ unsigned long poll_wait(poll_waiter_t *w)
  * poll_cb_once - loops over all triggered events and calls their callbacks
  * @w: the waiter to wait on
  */
-void poll_cb_once(poll_waiter_t *w)
+int poll_cb_once_nonblock(poll_waiter_t *w)
 {
 	poll_trigger_t *t;
-	int cb_counter = 0;
+	int ret = 1;
 
+	/* (@saubhik): If no event is triggered, return.
+	 * If a triggered event is found, then process it,
+	 * and process all triggered events, and return.
+	 */
 	while (true) {
 		spin_lock_np(&w->lock);
+
+		if (!w->counter) {
+			spin_unlock_np(&w->lock);
+			return -1;
+		}
+
 		t = list_pop(&w->triggered, poll_trigger_t, link);
 
 		if (!t) {
 			spin_unlock_np(&w->lock);
-			break;
+			return ret;
 		}
 
 		t->triggered = false;
 		spin_unlock_np(&w->lock);
 		t->cb(t->cb_arg);
-		// TODO: maybe fire the trigger again if the socket's queue
-		// wasn't completely drained? For now, the callback has to drain
-		// the queue because the the evented is no longer triggered.
 
-		/* don't get blocked in this loop and break */
-		if (cb_counter++ > MAX_AT_ONCE)
-			break;
+		udp_conn_check_triggers(t->sock);
+		ret = 0;
+	}
+}
+
+/**
+ * poll_cb_once - blocks till an event is triggered and loops over all
+ * triggered events and calls their callbacks
+ * @w: the waiter to wait on
+ */
+int poll_cb_once(poll_waiter_t *w)
+{
+	bool processed_events = false;
+	poll_trigger_t *t;
+
+	while (true) {
+		spin_lock_np(&w->lock);
+		if (!w->counter) {
+			spin_unlock_np(&w->lock);
+			return 1;
+		}
+
+		t = list_pop(&w->triggered, poll_trigger_t, link);
+
+		if (!t) {
+			spin_unlock_np(&w->lock);
+			if (processed_events) return 0;
+			return 1;
+		}
+
+		t->triggered = false;
+		spin_unlock_np(&w->lock);
+		t->cb(t->cb_arg);
+		processed_events = true;
+
+		udp_conn_check_triggers(t->sock);
 	}
 }
 
