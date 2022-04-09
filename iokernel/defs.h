@@ -151,10 +151,15 @@ struct proc {
 	void			*mr;
 #endif
 
-	/* Overfloq queue for completion data */
+	/* Overflow queue for completion data */
 	size_t max_overflows;
 	size_t nr_overflows;
 	unsigned long *overflow_queue;
+
+	/* Overflow queue for buf completion data */
+	size_t buf_max_overflows;
+	size_t buf_nr_overflows;
+	unsigned long *buf_overflow_queue;
 
 	/* table of physical addresses for shared memory */
 	physaddr_t		page_paddrs[];
@@ -358,4 +363,5 @@ extern bool tx_drain_completions(void);
  */
 extern void dp_clients_rx_control_lrpcs(void);
 extern bool commands_rx(void);
+extern bool buf_drain_completions(void);
 extern void dpdk_print_eth_stats(void);

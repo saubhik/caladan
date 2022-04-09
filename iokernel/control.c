@@ -103,6 +103,7 @@ static struct proc *control_create_proc(mem_key_t key, size_t len,
 	struct proc *p = NULL;
 	struct thread_spec *threads = NULL;
 	unsigned long *overflow_queue = NULL;
+	unsigned long *buf_overflow_queue = NULL;
 	void *shbuf;
 	int i, ret;
 
@@ -217,6 +218,12 @@ static struct proc *control_create_proc(mem_key_t key, size_t len,
 	if (overflow_queue == NULL)
 		goto fail;
 
+	p->buf_max_overflows = hdr.egress_buf_count;
+	p->buf_nr_overflows = 0;
+	p->buf_overflow_queue = buf_overflow_queue = malloc(sizeof(unsigned long) * p->buf_max_overflows);
+	if (buf_overflow_queue == NULL)
+		goto fail;
+
 	nr_guaranteed += hdr.sched_cfg.guaranteed_cores;
 
 	/* free temporary allocations */
@@ -226,6 +233,7 @@ static struct proc *control_create_proc(mem_key_t key, size_t len,
 
 fail:
 	free(overflow_queue);
+	free(buf_overflow_queue);
 	free(threads);
 	free(p);
 	if (reg.base)
