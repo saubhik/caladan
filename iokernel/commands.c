@@ -10,9 +10,14 @@
 
 #include "defs.h"
 
-static int commands_drain_queue(struct thread *t, struct rte_mbuf **bufs, int n)
+typedef struct pair {
+	int n_bufs, n_hdrs;
+} pair;
+
+static void commands_drain_queue(
+	pair *p, struct thread *t, struct rte_mbuf **bufs, int n, struct buf_hdr **hdrs)
 {
-	int i, n_bufs = 0;
+	int i;
 
 	for (i = 0; i < n; i++) {
 		uint64_t cmd;
@@ -23,8 +28,13 @@ static int commands_drain_queue(struct thread *t, struct rte_mbuf **bufs, int n)
 
 		switch (cmd) {
 		case TXCMD_NET_COMPLETE:
-			bufs[n_bufs++] = (struct rte_mbuf *)payload;
+			bufs[p->n_bufs++] = (struct rte_mbuf *)payload;
 			/* TODO: validate pointer @buf */
+			break;
+
+		case TXCMD_NET_BUF:
+			hdrs[p->n_hdrs++] = shmptr_to_ptr(
+				&t->p->region, payload, sizeof(struct buf_hdr));
 			break;
 
 		default:
@@ -32,8 +42,6 @@ static int commands_drain_queue(struct thread *t, struct rte_mbuf **bufs, int n)
 			BUG();
 		}
 	}
-
-	return n_bufs;
 }
 
 /*
@@ -41,9 +49,11 @@ static int commands_drain_queue(struct thread *t, struct rte_mbuf **bufs, int n)
  */
 bool commands_rx(void)
 {
+	struct buf_hdr *hdrs[IOKERNEL_CMD_BURST_SIZE];
 	struct rte_mbuf *bufs[IOKERNEL_CMD_BURST_SIZE];
-	int i, n_bufs = 0;
+	int i;
 	static unsigned int pos = 0;
+	pair p = {0, 0};
 
 	/*
 	 * Poll each thread in each runtime until all have been polled or we
@@ -52,16 +62,22 @@ bool commands_rx(void)
 	for (i = 0; i < nrts; i++) {
 		unsigned int idx = (pos + i) % nrts;
 
-		if (n_bufs >= IOKERNEL_CMD_BURST_SIZE)
+		if (p.n_bufs + p.n_hdrs >= IOKERNEL_CMD_BURST_SIZE)
 			break;
-		n_bufs += commands_drain_queue(ts[idx], &bufs[n_bufs],
-				IOKERNEL_CMD_BURST_SIZE - n_bufs);
+
+		commands_drain_queue(
+			&p, ts[idx], (struct rte_mbuf **) &bufs,
+				IOKERNEL_CMD_BURST_SIZE - (p.n_bufs + p.n_hdrs),
+				(struct buf_hdr **) &hdrs);
 	}
 
 	STAT_INC(COMMANDS_PULLED, n_bufs);
 
 	pos++;
-	for (i = 0; i < n_bufs; i++)
+	for (i = 0; i < p.n_bufs; i++)
 		rte_pktmbuf_free(bufs[i]);
-	return n_bufs > 0;
+
+	// Process the hdrs[i].
+
+	return (p.n_bufs + p.n_hdrs) > 0;
 }

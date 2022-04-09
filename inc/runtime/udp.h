@@ -52,6 +52,9 @@ extern void udp_set_nonblocking(udpconn_t *c, bool nonblocking);
 extern struct list_head *udp_get_triggers(udpconn_t *c);
 extern void udp_conn_check_triggers(udpconn_t *c);
 
+/* Send buf to iokernel. */
+extern ssize_t send_to_iokernel(const void *buf, ssize_t len);
+
 /*
  * UDP Parallel API
  */

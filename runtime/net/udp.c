@@ -479,6 +479,26 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	return len;
 }
 
+ssize_t send_to_iokernel(const void *buf, ssize_t len)
+{
+	struct buf *b;
+	ssize_t ret;
+
+	b = net_tx_alloc_buf_len(len);
+	if (unlikely(!b))
+		return -ENOBUFS;
+
+	memcpy(b->data, buf, len);
+
+	ret = net_tx_buf_iokernel(b);
+	if (unlikely(ret)) {
+		net_tx_release_buf(b);
+		return ret;
+	}
+
+	return len;
+}
+
 /**
  * udp_read - reads from a UDP socket
  * @c: the UDP socket

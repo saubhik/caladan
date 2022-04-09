@@ -25,6 +25,13 @@ struct tx_net_hdr {
 	char	     payload[];	/* packet data */
 } __attribute__((__packed__));
 
+/* preamble to arbitrary buffers from runtime */
+struct buf_hdr {
+	unsigned long completion_data; /* a tag to help complete the request */
+	unsigned int len; /* the length of the payload */
+	char payload[]; /* the data buffer */
+} __attribute__((__packed__));
+
 /* possible values for @csum_type above */
 enum {
 	/*
@@ -59,6 +66,7 @@ enum {
 enum {
 	RX_NET_RECV = 0,	/* points to a struct rx_net_hdr */
 	RX_NET_COMPLETE,	/* contains tx_net_hdr.completion_data */
+	RX_NET_BUF_COMPLETE,	/* for arbitrary buffers sent to the iokernel */
 	RX_JOIN,		/* immediate detach request for a kthread */
 	RX_CALL_NR,		/* number of commands */
 };
@@ -81,5 +89,6 @@ enum {
  */
 enum {
 	TXCMD_NET_COMPLETE = 0,	/* contains rx_net_hdr.completion_data */
+	TXCMD_NET_BUF,	/* for aribitrary buffers sent to the iokernel */
 	TXCMD_NR,		/* number of commands */
 };
