@@ -8,6 +8,8 @@
 #include <base/lrpc.h>
 #include <iokernel/queue.h>
 
+#include <stdio.h>
+
 #include "defs.h"
 
 typedef struct pair {
@@ -39,9 +41,10 @@ static void commands_drain_queue(
 			break;
 
 		case TXCMD_NET_BUF:
-			hdrs[pr->n_hdrs++] = shmptr_to_ptr(
+			hdrs[pr->n_hdrs] = shmptr_to_ptr(
 				&t->p->region, payload, sizeof(struct buf_hdr));
-			threads[pr->n_hdrs++] = t;
+			threads[pr->n_hdrs] = t;
+			++pr->n_hdrs;
 			break;
 
 		default:
@@ -136,7 +139,7 @@ bool commands_rx(void)
 	struct buf_hdr *hdrs[IOKERNEL_CMD_BURST_SIZE];
 	struct rte_mbuf *bufs[IOKERNEL_CMD_BURST_SIZE];
 	struct thread *threads[IOKERNEL_CMD_BURST_SIZE];
-	int i;
+	int i, j;
 	static unsigned int pos = 0;
 	pair pr = {0, 0};
 	struct thread *t;
@@ -168,15 +171,21 @@ bool commands_rx(void)
 	for (i = 0; i < pr.n_hdrs; ++i) {
 		t = threads[i];
 		hdr = hdrs[i];
-		log_info("buf: received hdr->payload %s", hdr->payload);
 
 		/* reference count @p so it doesn't get freed before the completion */
 		proc_get(t->p);
-	}
 
-	for (i = 0; i < pr.n_hdrs; ++i)
+#if 0
+		fprintf(stdout, "%s\n", "buf: received hdr->payload:");
+		for (j = 0; j < hdr->len; ++j) {
+			fprintf(stdout, "%02x%s", (uint8_t)hdr->payload[j],
+							(j+1)%16==0 ? "\r\n" : " ");
+		}
+#endif
+
 		// Give up on notifying the runtime if this returns false.
-		buf_send_completion(threads[i], hdrs[i]);
+		buf_send_completion(t, hdr);
+	}
 
 	return (pr.n_bufs + pr.n_hdrs) > 0;
 }

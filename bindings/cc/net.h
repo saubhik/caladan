@@ -25,7 +25,7 @@ class NetConn {
   virtual ssize_t Write(const void *buf, size_t len) = 0;
 };
 
-ssize_t SendToIOKernel(const void *buf, ssize_t len) {
+inline ssize_t SendToIOKernel(const void *buf, ssize_t len) {
 	return send_to_iokernel(buf, len);
 }
 
