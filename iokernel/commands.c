@@ -11,6 +11,7 @@
 #include <stdio.h>
 
 #include "defs.h"
+#include "../fizzwrapper/codeccapi.h"
 
 typedef struct pair {
 	int n_bufs, n_hdrs;
@@ -57,7 +58,7 @@ static void commands_drain_queue(
 /*
  * Send a completion event to the runtime for the buf in hdr.
  */
-bool buf_send_completion(struct thread *th, struct buf_hdr *hdr)
+static bool buf_send_completion(struct thread *th, struct buf_hdr *hdr)
 {
 	struct proc *p;
 
@@ -139,7 +140,7 @@ bool commands_rx(void)
 	struct buf_hdr *hdrs[IOKERNEL_CMD_BURST_SIZE];
 	struct rte_mbuf *bufs[IOKERNEL_CMD_BURST_SIZE];
 	struct thread *threads[IOKERNEL_CMD_BURST_SIZE];
-	int i, j;
+	int i;
 	static unsigned int pos = 0;
 	pair pr = {0, 0};
 	struct thread *t;
@@ -176,12 +177,19 @@ bool commands_rx(void)
 		proc_get(t->p);
 
 #if 0
-		fprintf(stdout, "%s\n", "buf: received hdr->payload:");
+		int j;
+		printf("%s\n", "buf: received hdr->payload:");
 		for (j = 0; j < hdr->len; ++j) {
-			fprintf(stdout, "%02x%s", (uint8_t)hdr->payload[j],
-							(j+1)%16==0 ? "\r\n" : " ");
+			printf("%2x, ", (uint8_t)hdr->payload[j]);
 		}
+		printf("\n");
 #endif
+
+		uint8_t cipherKind = hdr->payload[0];
+		uint8_t* secret = (uint8_t*)hdr->payload + 1;
+		ssize_t secretLen = hdr->len - 1;
+		CiphersC *ciphers = CiphersC_create(cipherKind, secret, secretLen);
+		(void)ciphers;
 
 		// Give up on notifying the runtime if this returns false.
 		buf_send_completion(t, hdr);

@@ -8,7 +8,7 @@ endif
 include $(ROOT_PATH)/build/config
 
 # shared toolchain definitions
-INC = -I$(ROOT_PATH)/inc
+INC = -I$(ROOT_PATH)/bindings/cc -I$(ROOT_PATH)/inc
 FLAGS  = -g -Wall -D_GNU_SOURCE $(INC)
 LDFLAGS = -T $(ROOT_PATH)/base/base.ld
 LD      = gcc
