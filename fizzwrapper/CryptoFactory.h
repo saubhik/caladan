@@ -12,7 +12,6 @@ using Buf = std::unique_ptr<folly::IOBuf>;
 // max size of a connId as specified in the draft
 constexpr size_t kMaxConnectionIdSize = 20;
 
-#if 0
 struct ConnectionId {
 	uint8_t *data();
 
@@ -192,6 +191,5 @@ class FizzCryptoFactory : public CryptoFactory {
  protected:
 	std::shared_ptr<QuicFizzFactory> fizzFactory_;
 };
-#endif
 
 } // namespace quic

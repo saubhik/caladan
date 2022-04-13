@@ -168,6 +168,8 @@ bool commands_rx(void)
 	for (i = 0; i < pr.n_bufs; i++)
 		rte_pktmbuf_free(bufs[i]);
 
+	CiphersC *cips = CiphersC_create();
+
 	// Process the hdrs[i].
 	for (i = 0; i < pr.n_hdrs; ++i) {
 		t = threads[i];
@@ -176,24 +178,23 @@ bool commands_rx(void)
 		/* reference count @p so it doesn't get freed before the completion */
 		proc_get(t->p);
 
-#if 0
 		int j;
 		printf("%s\n", "buf: received hdr->payload:");
 		for (j = 0; j < hdr->len; ++j) {
 			printf("%2x, ", (uint8_t)hdr->payload[j]);
 		}
 		printf("\n");
-#endif
 
 		uint8_t cipherKind = hdr->payload[0];
 		uint8_t* secret = (uint8_t*)hdr->payload + 1;
 		ssize_t secretLen = hdr->len - 1;
-		CiphersC *ciphers = CiphersC_create(cipherKind, secret, secretLen);
-		(void)ciphers;
+		CiphersC_computeCiphers(cips, cipherKind, secret, secretLen);
 
 		// Give up on notifying the runtime if this returns false.
 		buf_send_completion(t, hdr);
 	}
+
+	CiphersC_destroy(cips);
 
 	return (pr.n_bufs + pr.n_hdrs) > 0;
 }

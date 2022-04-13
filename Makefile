@@ -71,7 +71,17 @@ endif
 endif
 
 # fizzwrapper libs
-FIZZWRAPPER_LIBS = -lfizz -lfolly -lsodium -lgmock -lglog -lgflags -lfmt -liberty -lssl -lcrypto -ldouble-conversion
+FIZZWRAPPER_LIBS = -lfizz
+FIZZWRAPPER_LIBS += -lfolly
+FIZZWRAPPER_LIBS += -lsodium
+FIZZWRAPPER_LIBS += -lglog
+FIZZWRAPPER_LIBS += -lgflags
+FIZZWRAPPER_LIBS += -lfmt
+FIZZWRAPPER_LIBS += -liberty
+FIZZWRAPPER_LIBS += -levent
+FIZZWRAPPER_LIBS += -lboost_context
+FIZZWRAPPER_LIBS += -lcrypto
+FIZZWRAPPER_LIBS += -ldouble-conversion
 
 # must be first
 all:
@@ -91,9 +101,12 @@ libruntime.a: $(runtime_obj)
 libfizzwrapper.a: $(fizz_obj)
 	$(AR) rcs $@ $^
 
-iokerneld: $(iokernel_obj) libbase.a libnet.a libfizzwrapper.a base/base.ld $(PCM_DEPS)
-	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) libbase.a libnet.a libfizzwrapper.a $(DPDK_LIBS) \
-	$(PCM_DEPS) $(PCM_LIBS) $(FIZZWRAPPER_LIBS) -lpthread -lnuma -ldl
+iokerneld: $(iokernel_obj) libbase.a libnet.a libruntime.a libfizzwrapper.a base/base.ld $(PCM_DEPS)
+	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) \
+	libfizzwrapper.a $(FIZZWRAPPER_LIBS) ./bindings/cc/librt++.a libruntime.a libnet.a libbase.a \
+	$(DPDK_LIBS) \
+	$(PCM_DEPS) $(PCM_LIBS) \
+	-lpthread -lnuma -ldl
 
 $(test_targets): $(test_obj) libbase.a libruntime.a libnet.a libfizzwrapper.a base/base.ld
 	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS)

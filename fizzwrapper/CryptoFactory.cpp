@@ -2,7 +2,6 @@
 
 namespace {
 
-#if 0
 class QuicPlaintextReadRecordLayer : public fizz::PlaintextReadRecordLayer {
  public:
 	~QuicPlaintextReadRecordLayer() override = default;
@@ -74,6 +73,18 @@ class QuicEncryptedWriteRecordLayer : public fizz::EncryptedWriteRecordLayer {
 } // namespace
 
 namespace quic {
+
+uint8_t* ConnectionId::data() {
+	return connid.data();
+}
+
+const uint8_t* ConnectionId::data() const {
+	return connid.data();
+}
+
+uint8_t ConnectionId::size() const {
+	return connidLen;
+}
 
 std::unique_ptr<Aead> CryptoFactory::getClientInitialCipher(
 	const ConnectionId &clientDestinationConnId,
@@ -223,6 +234,5 @@ std::unique_ptr<PacketNumberCipher> FizzCryptoFactory::makePacketNumberCipher(
 			throw std::runtime_error("Packet number cipher not implemented");
 	}
 }
-#endif
 
 } // namespace quic

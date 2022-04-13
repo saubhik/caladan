@@ -3,17 +3,27 @@
 extern "C" {
 #include "codeccapi.h"
 
-CiphersC *CiphersC_create(uint8_t cipKind, uint8_t *sec, ssize_t secLen) {
-	std::vector<uint8_t> secret;
-	quic::CipherKind cipherKind;
-	secret.assign(sec, sec + secLen);
-	cipherKind = static_cast<quic::CipherKind>(cipKind);
+CiphersC *CiphersC_create() {
 	try {
-		return reinterpret_cast<CiphersC *>(
-			new quic::Ciphers(cipherKind, folly::range(secret)));
+		return reinterpret_cast<CiphersC *>(new quic::Ciphers());
 	} catch (...) {
 		return nullptr;
 	}
+}
+
+void CiphersC_computeCiphers(
+CiphersC *cip, uint8_t cipKind, uint8_t *sec,
+ssize_t secLen) {
+	std::vector<uint8_t> secret;
+	secret.assign(sec, sec + secLen);
+	quic::CipherKind cipherKind = static_cast<quic::CipherKind>(cipKind);
+	quic::Ciphers *ciphers = reinterpret_cast<quic::Ciphers *>(cip);
+	ciphers->computeCiphers(cipherKind, secret);
+}
+
+void CiphersC_destroy(CiphersC *cipher) {
+	quic::Ciphers *cppcipher = reinterpret_cast<quic::Ciphers *>(cipher);
+	delete cppcipher;
 }
 
 #if 0

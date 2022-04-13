@@ -4,7 +4,12 @@
 struct CiphersC;
 typedef struct CiphersC CiphersC;
 
-CiphersC *CiphersC_create(uint8_t cipKind, uint8_t* sec, ssize_t secLen);
+CiphersC *CiphersC_create();
+
+void CiphersC_computeCiphers(
+CiphersC *cips, uint8_t cipKind, uint8_t *sec,
+ssize_t secLen);
+
 void CiphersC_destroy(CiphersC *ciphers);
 
 #if 0

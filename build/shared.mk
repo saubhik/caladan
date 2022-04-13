@@ -8,13 +8,13 @@ endif
 include $(ROOT_PATH)/build/config
 
 # shared toolchain definitions
-INC = -I$(ROOT_PATH)/bindings/cc -I$(ROOT_PATH)/inc
-FLAGS  = -g -Wall -D_GNU_SOURCE $(INC)
+INC 	= -I$(ROOT_PATH)/bindings/cc -I$(ROOT_PATH)/inc
+FLAGS  	= -g -Wall -D_GNU_SOURCE $(INC)
 LDFLAGS = -T $(ROOT_PATH)/base/base.ld
 LD      = gcc
 CC      = gcc
 LDXX	= g++
-CXX	= g++
+CXX		= g++
 AR      = ar
 SPARSE  = sparse
 
