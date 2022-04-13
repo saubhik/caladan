@@ -48,23 +48,25 @@ toIOBuf(std::string hexData, size_t headroom = 0, size_t tailroom = 0) {
 
 std::pair<std::unique_ptr<Aead>, std::unique_ptr<PacketNumberCipher>>
 Ciphers::buildCiphers(folly::ByteRange secret) {
+	auto cipher = fizz::CipherSuite::TLS_AES_128_GCM_SHA256;
+	auto scheduler = (*state_.context()->getFactory()).makeKeyScheduler(cipher);
 	auto aead = FizzAead::wrap(
 	fizz::Protocol::deriveRecordAeadWithLabel(
 	*state_.context()->getFactory(),
-	*state_.keyScheduler(),
-	*state_.cipher(),
+	*scheduler,
+	cipher,
 	secret,
 	kQuicKeyLabel,
 	kQuicIVLabel));
 
-	auto out = aead->inplaceEncrypt(
+	auto out = aead->getFizzAead()->encrypt(
 	toIOBuf(folly::hexlify("plaintext")),
 	toIOBuf("").get(),
 	0);
 
-	printf("I am here!");
 	std::cout << R"(aead->inplaceEncrypt(hexlify("plaintext"),"",0) = )"
-	          << out->moveToFbString().toStdString() << std::endl;
+	          << folly::hexlify(out->moveToFbString().toStdString())
+						<< std::endl;
 
 	auto headerCipher = cryptoFactory_.makePacketNumberCipher(secret);
 
