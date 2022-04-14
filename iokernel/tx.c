@@ -12,8 +12,6 @@
 #include <base/log.h>
 #include <net/udp.h>
 #include <iokernel/queue.h>
-#include <nettle/aes.h>
-#include <nettle/gcm.h>
 
 #include "defs.h"
 #include "base/byteorder.h"
@@ -416,8 +414,8 @@ full:
 
   for (i = 0; i < n_pkts; ++i) {
 	  print_pkt_contents(hdrs[i]);
-	  //dummy_encrypt(hdrs[i]);
 	  do_encrypt(seg_hdrs[i]);
+	  print_pkt_contents(hdrs[i]);
 	}
 
 	/* fill in packet metadata */

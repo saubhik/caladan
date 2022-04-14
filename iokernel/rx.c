@@ -17,8 +17,6 @@
 #include "sched.h"
 
 #include <net/udp.h>
-#include <nettle/aes.h>
-#include <nettle/gcm.h>
 #include "base/byteorder.h"
 #include "../fizz_lib/codeccapi.h"
 
@@ -165,6 +163,7 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 		p = (struct proc *)data;
 		net_hdr = rx_prepend_rx_preamble(buf);
 		//dummy_decrypt(net_hdr);
+		print_rx_pkt_contents(net_hdr);
 		do_decrypt(net_hdr);
 		print_rx_pkt_contents(net_hdr);
 
@@ -182,6 +181,7 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 		int n_sent = 0;
 
 		net_hdr = rx_prepend_rx_preamble(buf);
+		print_rx_pkt_contents(net_hdr);
 		do_decrypt(net_hdr);
 		print_rx_pkt_contents(net_hdr);
 		for (i = 0; i < dp.nr_clients; i++) {
