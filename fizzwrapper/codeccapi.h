@@ -6,9 +6,7 @@ typedef struct CiphersC CiphersC;
 
 CiphersC *CiphersC_create();
 
-void CiphersC_computeCiphers(
-CiphersC *cips, uint8_t cipKind, uint8_t *sec,
-ssize_t secLen);
+void CiphersC_computeCiphers(CiphersC *cips, uint8_t *buf, ssize_t bufLen);
 
 void CiphersC_destroy(CiphersC *ciphers);
 

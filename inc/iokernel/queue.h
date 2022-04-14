@@ -22,6 +22,8 @@ struct tx_net_hdr {
 	unsigned int len;	/* the length of the payload */
 	unsigned int olflags;	/* offload flags */
 	unsigned short pad;	/* because of 14 byte ethernet header */
+	unsigned long aead_index; /* for encryption inside iokernel */
+	unsigned long header_cipher_index; /* for encryption inside iokernel */
 	char	     payload[];	/* packet data */
 } __attribute__((__packed__));
 

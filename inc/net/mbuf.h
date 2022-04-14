@@ -38,6 +38,9 @@ struct mbuf {
 	unsigned long   release_data;	/* data for the release method */
 	void		(*release)(struct mbuf *m); /* frees the mbuf */
 
+	unsigned long aead_index; /* for encryption inside iokernel */
+	unsigned long header_cipher_index; /* for encryption inside iokernel */
+
 	/* TCP fields */
 	struct list_node link;	    /* list node for RX and TX queues */
 	uint64_t	timestamp;  /* the time the packet was last sent */

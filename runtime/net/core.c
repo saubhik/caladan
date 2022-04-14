@@ -397,6 +397,8 @@ static int net_tx_iokernel(struct mbuf *m)
 	hdr->completion_data = (unsigned long)m;
 	hdr->len = len;
 	hdr->olflags = m->txflags;
+	hdr->aead_index = m->aead_index;
+	hdr->header_cipher_index = m->header_cipher_index;
 	shmptr_t shm = ptr_to_shmptr(&netcfg.tx_region, hdr, len + sizeof(*hdr));
 
 	if (unlikely(!lrpc_send(&k->txpktq, TXPKT_NET_XMIT, shm))) {

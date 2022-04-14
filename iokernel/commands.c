@@ -178,17 +178,12 @@ bool commands_rx(void)
 		/* reference count @p so it doesn't get freed before the completion */
 		proc_get(t->p);
 
-		int j;
-		printf("%s\n", "buf: received hdr->payload:");
-		for (j = 0; j < hdr->len; ++j) {
-			printf("%2x, ", (uint8_t)hdr->payload[j]);
+		for (int j = 0; j < hdr->len; ++j) {
+			printf("%2x,", (uint8_t)hdr->payload[j]);
 		}
 		printf("\n");
 
-		uint8_t cipherKind = hdr->payload[0];
-		uint8_t* secret = (uint8_t*)hdr->payload + 1;
-		ssize_t secretLen = hdr->len - 1;
-		CiphersC_computeCiphers(cips, cipherKind, secret, secretLen);
+		CiphersC_computeCiphers(cips, (uint8_t *)hdr->payload, hdr->len);
 
 		// Give up on notifying the runtime if this returns false.
 		buf_send_completion(t, hdr);

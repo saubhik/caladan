@@ -77,15 +77,33 @@ class UdpConn : public NetConn {
   }
 
   // Writes a datagram and sets to remote address.
-  ssize_t WriteTo(const void *buf, size_t len, const netaddr *raddr) {
-    return udp_write_to(c_, buf, len, raddr);
+  ssize_t WriteTo(
+		const void *buf,
+		size_t len,
+		const netaddr *raddr,
+		void *cipherMeta,
+		ssize_t cipherMetaLen) {
+    return udp_write_to(c_, buf, len, raddr, cipherMeta, cipherMetaLen);
   }
 
   // Reads a datagram.
   ssize_t Read(void *buf, size_t len) { return udp_read(c_, buf, len); }
 
   // Writes a datagram.
-  ssize_t Write(const void *buf, size_t len) { return udp_write(c_, buf, len); }
+  ssize_t Write(
+		const void *buf,
+		size_t len,
+		void *cipherMeta,
+		ssize_t cipherMetaLen) {
+		return udp_write(c_, buf, len, cipherMeta, cipherMetaLen);
+	}
+
+	// Writes a datagram.
+	ssize_t Write(
+		const void *buf,
+		size_t len) {
+		return udp_write(c_, buf, len, nullptr, 0);
+	}
 
   // Shutdown the socket (no more receives).
   void Shutdown() { udp_shutdown(c_); }

@@ -42,9 +42,10 @@ extern int udp_set_buffers(udpconn_t *c, int read_mbufs, int write_mbufs);
 extern ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
 			     struct netaddr *raddr);
 extern ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
-			    const struct netaddr *raddr);
+	const struct netaddr *raddr, void *cipher_meta, ssize_t cipher_meta_len);
 extern ssize_t udp_read(udpconn_t *c, void *buf, size_t len);
-extern ssize_t udp_write(udpconn_t *c, const void *buf, size_t len);
+extern ssize_t udp_write(udpconn_t *c, const void *buf, size_t len,
+	void *cipher_meta, ssize_t cipher_meta_len);
 extern void udp_shutdown(udpconn_t *c);
 extern void udp_close(udpconn_t *c);
 
