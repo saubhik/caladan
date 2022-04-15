@@ -13,7 +13,7 @@
 #include "../defs.h"
 
 /* Maximum buffer for TX packets */
-#define MAX_BUF_LEN 64000
+#define MAX_BUF_LEN 131072
 
 extern struct mempool net_tx_buf_mp;
 
@@ -44,12 +44,15 @@ void net_rx_batch(struct mbuf **ms, unsigned int nr);
 
 /* the size of the region before a buffer to store struct mbuf */
 #define MBUF_HEAD_LEN (align_up(sizeof(struct mbuf), CACHE_LINE_SIZE))
+#define BUF_HEAD_LEN (align_up(sizeof(struct buf), CACHE_LINE_SIZE))
 
 extern int arp_lookup(uint32_t daddr, struct eth_addr *dhost_out,
 		      struct mbuf *m) __must_use_return;
 extern struct mbuf *net_tx_alloc_mbuf();
 extern struct mbuf *net_tx_alloc_mbuf_len(unsigned int len);
+extern struct buf *net_tx_alloc_buf_len(unsigned int len);
 extern void net_tx_release_mbuf(struct mbuf *m);
+extern void net_tx_release_buf(struct buf *b);
 extern void net_tx_eth(struct mbuf *m, uint16_t proto,
 		       struct eth_addr dhost);
 extern int net_tx_ip(struct mbuf *m, uint8_t proto,
@@ -58,6 +61,7 @@ extern int net_tx_ip_burst(struct mbuf **ms, int n, uint8_t proto,
 		     uint32_t daddr) __must_use_return;
 extern int net_tx_icmp(struct mbuf *m, uint8_t type, uint8_t code,
 		uint32_t daddr, uint16_t id, uint16_t seq) __must_use_return;
+extern int net_tx_buf_iokernel(struct buf *b) __must_use_return;
 
 /**
  * net_tx_ip - transmits an IP packet, or frees it on failure

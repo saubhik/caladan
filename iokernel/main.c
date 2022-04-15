@@ -107,6 +107,7 @@ void dataplane_loop(void)
 
 		/* drain overflow completion queues */
 		work_done |= tx_drain_completions();
+		work_done |= buf_drain_completions();
 
 		/* send a burst of egress packets */
 		work_done |= tx_burst();

@@ -12,15 +12,22 @@ endif
 base_src = $(wildcard base/*.c)
 base_obj = $(base_src:.c=.o)
 
-#libnet.a - a packet/networking utility library
+# libnet.a - a packet/networking utility library
 net_src = $(wildcard net/*.c)
 net_obj = $(net_src:.c=.o)
 
-fizz_c_src = $(wildcard fizz_lib/*.c)
+encfizz_c_src = $(wildcard fizz_lib/*.c)
+encfizz_c_obj = $(encfizz_c_src:.c=.o)
+encfizz_cpp_src = $(wildcard fizz_lib/*.cpp)
+encfizz_cpp_obj = $(encfizz_cpp_src:.cpp=.o)
+encfizz_obj = $(encfizz_cpp_obj) 
+encfizz_obj += $(encfizz_c_obj)
+# libfizzwrapper.a - a shim for encryption (fizz)
+fizz_c_src = $(wildcard fizzwrapper/*.c)
 fizz_c_obj = $(fizz_c_src:.c=.o)
-fizz_cpp_src = $(wildcard fizz_lib/*.cpp)
+fizz_cpp_src = $(wildcard fizzwrapper/*.cpp)
 fizz_cpp_obj = $(fizz_cpp_src:.cpp=.o)
-fizz_obj = $(fizz_cpp_obj) 
+fizz_obj = $(fizz_cpp_obj)
 fizz_obj += $(fizz_c_obj)
 
 # iokernel - a soft-NIC service
@@ -69,13 +76,24 @@ DPDK_LIBS += -lrte_pmd_mlx4 -libverbs -lmlx4
 endif
 endif
 
-FIZZ_LIBS = -lfizz -lfolly -lsodium -lgmock -lglog -lssl -lcrypto -ldouble-conversion
+# fizzwrapper libs
+FIZZWRAPPER_LIBS = -lfizz
+FIZZWRAPPER_LIBS += -lfolly
+FIZZWRAPPER_LIBS += -lsodium
+FIZZWRAPPER_LIBS += -lglog
+FIZZWRAPPER_LIBS += -lgflags
+FIZZWRAPPER_LIBS += -lfmt
+FIZZWRAPPER_LIBS += -liberty
+FIZZWRAPPER_LIBS += -levent
+FIZZWRAPPER_LIBS += -lboost_context
+FIZZWRAPPER_LIBS += -lcrypto
+FIZZWRAPPER_LIBS += -ldouble-conversion
 
 # must be first
 all:
 	$(MAKE) libs
 
-libs: libbase.a libnet.a libruntime.a libfizzwrapper.a iokerneld $(test_targets) 
+libs: libbase.a libnet.a libruntime.a libfizzwrapper.a iokerneld $(test_targets)
 
 libbase.a: $(base_obj)
 	$(AR) rcs $@ $^
@@ -86,13 +104,15 @@ libnet.a: $(net_obj)
 libruntime.a: $(runtime_obj)
 	$(AR) rcs $@ $^
 
-libfizzwrapper.a: $(fizz_obj)
-	echo "FIZZ OBJECTS ARE:  $(fizz_obj)"
+libfizzwrapper.a: $(fizz_obj) $(encfizz_obj)
 	$(AR) rcs $@ $^
 
-iokerneld: $(iokernel_obj) libbase.a libnet.a libfizzwrapper.a base/base.ld $(PCM_DEPS)
-	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) libbase.a libnet.a libfizzwrapper.a $(DPDK_LIBS) \
-	$(PCM_DEPS) $(PCM_LIBS) -lpthread -lnuma -ldl -lnettle $(FIZZ_LIBS)
+iokerneld: $(iokernel_obj) libbase.a libnet.a libruntime.a libfizzwrapper.a base/base.ld $(PCM_DEPS)
+	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) \
+	libfizzwrapper.a $(FIZZWRAPPER_LIBS) ./bindings/cc/librt++.a libruntime.a libnet.a libbase.a \
+	$(DPDK_LIBS) \
+	$(PCM_DEPS) $(PCM_LIBS) \
+	-lpthread -lnuma -ldl
 
 $(test_targets): $(test_obj) libbase.a libruntime.a libnet.a libfizzwrapper.a base/base.ld
 	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS)
@@ -130,5 +150,5 @@ submodules:
 
 .PHONY: clean
 clean:
-	rm -f $(obj) $(dep) libbase.a libnet.a libruntime.a libfizzwrapper.a\
+	rm -f $(obj) $(dep) libbase.a libnet.a libruntime.a libfizzwrapper.a \
 	iokerneld $(test_targets)

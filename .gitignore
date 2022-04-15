@@ -6,3 +6,9 @@ iokerneld
 *~
 .cproject
 .project
+.idea/
+.clion.source.upload.marker
+deps/pcm
+dpdk
+rdma-core
+spdk

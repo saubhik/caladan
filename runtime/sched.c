@@ -955,7 +955,7 @@ int sched_init_thread(void)
  *
  * Returns 0 if successful, or -ENOMEM if out of memory.
  */
-int sched_init(void)
+int runtime_sched_init(void)
 {
 	int ret, i, j, siblings;
 

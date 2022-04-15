@@ -15,7 +15,7 @@
 #include <base/list.h>
 #include <iokernel/queue.h>
 
-#define MBUF_DEFAULT_LEN	2048
+#define MBUF_DEFAULT_LEN	131072
 #define MBUF_DEFAULT_HEADROOM	128
 
 
@@ -38,6 +38,9 @@ struct mbuf {
 	unsigned long   release_data;	/* data for the release method */
 	void		(*release)(struct mbuf *m); /* frees the mbuf */
 
+	unsigned long aead_index; /* for encryption inside iokernel */
+	unsigned long header_cipher_index; /* for encryption inside iokernel */
+
 	/* TCP fields */
 	struct list_node link;	    /* list node for RX and TX queues */
 	uint64_t	timestamp;  /* the time the packet was last sent */
@@ -45,6 +48,15 @@ struct mbuf {
 	uint32_t	seg_end;    /* the last seg number (noninclusive) */
 	uint8_t		flags;	    /* which flags were set? */
 	atomic_t	ref;	    /* a reference count for the mbuf */
+};
+
+/* Fields taken from struct mbuf. This is for LRPC to the iokernel. */
+struct buf {
+	unsigned char	*head;							/* start of the buffer */
+	unsigned char *data;							/* current position within the buffer */
+	unsigned int head_len;						/* length of the entire buffer from @head */
+	unsigned int len;									/* length of the data */
+	void (*release)(struct buf *b);		/* frees the mbuf */
 };
 
 static inline unsigned char *__mbuf_pull(struct mbuf *m, unsigned int len)
@@ -257,12 +269,37 @@ static inline void mbuf_init(struct mbuf *m, unsigned char *head,
 }
 
 /**
+ * buf_init - initializes an buf
+ * @b: the packet to initialize
+ * @head: the start of the backing buffer
+ * @len: the length of backing buffer
+ * @reserve_len: the number of bytes to reserve at the start of @head
+ */
+static inline void buf_init(struct buf *b, unsigned char *head,
+	unsigned int len, unsigned int reserve_len)
+{
+	b->head = head;
+	b->head_len = len + reserve_len;
+	b->data = b->head + reserve_len;
+	b->len = len;
+}
+
+/**
  * mbuf_free - frees an mbuf back to an allocator
  * @m: the mbuf to free
  */
 static inline void mbuf_free(struct mbuf *m)
 {
 	m->release(m);
+}
+
+/**
+ * buf_free - frees an buf back to an allocator
+ * @b: the buf to free
+ */
+static inline void buf_free(struct buf *b)
+{
+	b->release(b);
 }
 
 extern struct mbuf *mbuf_clone(struct mbuf *dst, struct mbuf *src);
