@@ -16,8 +16,14 @@
 #include "defs.h"
 #include "sched.h"
 
+#include <net/udp.h>
+#include "base/byteorder.h"
+#include "../fizz_lib/codeccapi.h"
+
 #define MBUF_CACHE_SIZE 250
 #define RX_PREFETCH_STRIDE 2
+#define UDP_OFFSET 34
+#define XOR_SALT 4242
 
 
 /*
@@ -88,6 +94,49 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 	return rx_send_to_runtime(p, hdr->rss_hash, RX_NET_RECV, shmptr);
 }
 
+void print_rx_pkt_contents(struct rx_net_hdr *net_hdr) {
+  struct udp_hdr *udphdr = (struct udp_hdr *)(net_hdr->payload + UDP_OFFSET);
+  int pktlen = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
+  uint32_t *udp_data = (char *)udphdr + sizeof(struct udp_hdr);
+	int num_entries = pktlen / sizeof(uint32_t);
+	log_info("packet length: %d", pktlen);
+  for (int j = 0; j < num_entries; j++) {
+    log_info("rx: %d", udp_data[j]);
+  }
+}
+
+void print_rx_pkt_header(struct rx_net_hdr *net_hdr) {
+  struct udp_hdr *udphdr = (struct udp_hdr *)(net_hdr->payload + UDP_OFFSET);
+  int pktlen = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
+  uint32_t *udp_data = (char *)udphdr + sizeof(struct udp_hdr);
+	log_info("packet length: %d", pktlen);
+}
+
+void dummy_decrypt(struct rx_net_hdr *hdr) {
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  char *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+  for (uint32_t *ptr = (uint32_t *)addr; (char *)(ptr + 1) <= (addr + len); ++ptr) {
+    *ptr ^= XOR_SALT;
+  }
+}
+
+// Do in-place decryption of UDP application data
+void do_decrypt(struct rx_net_hdr *hdr) {
+	static char key[17] = "permanantdeaths!";
+	static char iv[13] = "eyeveeRaNdOm";
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int len = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  //if (len % AES_BLOCK_SIZE) return;
+  uint8_t *addr = (char *)udphdr_enc + sizeof(struct udp_hdr);
+	uint32_t *signature = (uint32_t *)addr;
+	if (signature[0] == 0xFF) {
+		MyCipherC *cipher = MyCipherC_create((void *)key, 16, (void *)iv, 12);
+		MyCipherC_decrypt(cipher, (void *)(signature + 1), (void *)hdr, len - 4, 0, 42);
+		MyCipherC_destroy(cipher);
+	}
+}
+
 static void rx_one_pkt(struct rte_mbuf *buf)
 {
 	struct rte_ether_hdr *ptr_mac_hdr;
@@ -120,6 +169,8 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 
 		p = (struct proc *)data;
 		net_hdr = rx_prepend_rx_preamble(buf);
+		print_rx_pkt_header(net_hdr);
+
 		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
 			STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");

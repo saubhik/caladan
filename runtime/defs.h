@@ -623,7 +623,7 @@ extern int directpath_init_thread(void);
 extern int kthread_init(void);
 extern int ioqueues_init(void);
 extern int stack_init(void);
-extern int sched_init(void);
+extern int runtime_sched_init(void);
 extern int preempt_init(void);
 extern int net_init(void);
 extern int udp_init(void);

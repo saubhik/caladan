@@ -3,7 +3,6 @@
  */
 
 #include <string.h>
-#include <math.h>
 
 #include <base/hash.h>
 #include <base/kref.h>
@@ -408,8 +407,13 @@ static void udp_tx_release_mbuf(struct mbuf *m)
  * Returns the number of payload bytes sent in the datagram. If an error
  * occurs, returns < 0 to indicate the error code.
  */
-ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
-                     const struct netaddr *raddr)
+ssize_t udp_write_to(
+	udpconn_t *c,
+	const void *buf,
+	size_t len,
+	const struct netaddr *raddr,
+	void *cipher_meta,
+	ssize_t cipher_meta_len)
 {
 	struct netaddr addr;
 	ssize_t ret;
@@ -459,7 +463,7 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	/* write datagram payload */
 	/* The buffer will look like (in order from left to right):
 	 * (assuming in total n packets)
-	 * 1. headers for first packet (tx_net_hdr + eth + ip + udp), 60 bytes.
+	 * 1. headers for first packet (tx_net_hdr + eth + ip + udp), 76 bytes.
 	 * 2. app data for all packets, maybe 10,000 bytes.
 	 * 3. unallocated space for headers for (n-1) other packets.
 	 */
@@ -470,9 +474,38 @@ ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
 	m->release = udp_tx_release_mbuf;
 	m->release_data = (unsigned long)c;
 
+	if (cipher_meta) {
+		sh_assert(cipher_meta_len == 16);
+		memcpy(&m->aead_index, cipher_meta, 8);
+		memcpy(&m->header_cipher_index, cipher_meta + 8, 8);
+	} else {
+		m->aead_index = 0;
+		m->header_cipher_index = 0;
+	}
+
 	ret = udp_send_raw(m, len, c->e.laddr, addr);
 	if (unlikely(ret)) {
 		net_tx_release_mbuf(m);
+		return ret;
+	}
+
+	return len;
+}
+
+ssize_t send_to_iokernel(const void *buf, ssize_t len)
+{
+	struct buf *b;
+	ssize_t ret;
+
+	b = net_tx_alloc_buf_len(len);
+	if (unlikely(!b))
+		return -ENOBUFS;
+
+	memcpy(b->data, buf, len);
+
+	ret = net_tx_buf_iokernel(b);
+	if (unlikely(ret)) {
+		net_tx_release_buf(b);
 		return ret;
 	}
 
@@ -508,9 +541,14 @@ ssize_t udp_read(udpconn_t *c, void *buf, size_t len)
  * Returns the number of payload bytes sent in the datagram. If an error
  * occurs, returns < 0 to indicate the error code.
  */
-ssize_t udp_write(udpconn_t *c, const void *buf, size_t len)
+ssize_t udp_write(
+	udpconn_t *c,
+	const void *buf,
+	size_t len,
+	void *cipher_meta,
+	ssize_t cipher_meta_len)
 {
-	return udp_write_to(c, buf, len, NULL);
+	return udp_write_to(c, buf, len, NULL, cipher_meta, cipher_meta_len);
 }
 
 static void __udp_shutdown(udpconn_t *c)
