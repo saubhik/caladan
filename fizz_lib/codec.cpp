@@ -61,8 +61,10 @@ uint32_t tryParseHeader(void *header, int udplen) {
   auto headerForm = quic::getHeaderForm(initialByte);
   if (headerForm == quic::HeaderForm::Long) {
     return std::numeric_limits<uint32_t>::max();
+  } else if (initialByte & quic::ShortHeader::kFixedBitMask) {
+    // Assumption:
+    // constexpr size_t kDefaultConnectionIdSize = 8;
+    return 1;
   }
-  // Assumption:
-  // constexpr size_t kDefaultConnectionIdSize = 8;
-  return 1;
+  return 0;
 }

@@ -30,4 +30,9 @@ void *MyCipherC_decrypt(MyCipherC *cipher, void *payload, void *aad, int payload
   return cppcipher->decrypt(payload, aad, payload_and_tail, aadlen, seqNo);
 }
 
+
+uint32_t try_parse_header(void *header, int udplen) {
+  return tryParseHeader(header, udplen);
+}
+
 }

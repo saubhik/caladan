@@ -18,7 +18,7 @@
 #include "../fizz_lib/codeccapi.h"
 
 #define TX_PREFETCH_STRIDE 2
-#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 128)
+#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 50)
 #define UDP_OFFSET 34
 #define MTU_SIZE 1500
 #define XOR_SALT 4242
@@ -298,8 +298,11 @@ void print_pkt_contents(struct tx_net_hdr *hdr) {
 void print_pkt_header(struct tx_net_hdr *hdr) {
   struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
   int pktlen = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+  uint32_t *udp_data = (char *)udphdr_enc + sizeof(struct udp_hdr);
 	log_info("packet length: %d", pktlen);
+	log_info("is short header?: %u\n", try_parse_header((void *)udp_data, pktlen));
 }
+
 
 /*
  * Process a batch of outgoing packets.
@@ -361,11 +364,8 @@ full:
 		udphdr = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
 		len = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
 
-		/* Get the number of segments.
-		 * 76 = 34 (tx_net_hdr) + 14 (eth_hdr) + 20 (ip_hdr) + 8 (udp_hdr)
-		 * Get the number of times the above size is allocated in the buffer.
-		 * Should be equal to DIV_CEIL(len / 1458) */
-		segs = (hdrs[i]->len + sizeof (struct tx_net_hdr) - len) / 76;
+		/* Get the number of segments. */
+		segs = (hdrs[i]->len + sizeof (struct tx_net_hdr) - len) / 60;
 
 		/* Get the pointer to the last app data chunk. */
 		curr = hdrs[i]->payload + 42;  // pointer to first segment
@@ -373,15 +373,15 @@ full:
 
 		/* Perform (segs - 1) memory "moves" (overlapping src & dest). */
 		for (j = 1; j <= segs - 1; ++j) {
-			memmove(curr + (segs - j) * 76, curr,
+			memmove(curr + (segs - j) * 60, curr,
 							j == 1 ? len - 1458 * (segs - 1) : 1458);
 			curr -= 1458;
 		}
 
 		/* Perform (segs - 1) memory copies for headers. */
-		curr -= 76;
+		curr -= 60;
 		for (j = 1; j <= segs - 1; ++j) {
-			memcpy(curr + 1534, curr, 76);
+			memcpy(curr + 1518, curr, 60);
 
 			/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
 			shdr = (struct tx_net_hdr *) curr;
@@ -393,11 +393,10 @@ full:
 			seg_ts[m] = threads[i];
 			seg_hdrs[m++] = shdr;
 
-			curr += 1534;
+			curr += 1518;
 		}
 
-		/* Update tx_net_hdr, udp_hdr, ip_hdr len fields.
-		 * This one has completion_data == m. */
+		/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
 		shdr = (struct tx_net_hdr *) curr;
 		shdr->len = len - 1458 * (segs - 1) + 42;
 		*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
@@ -421,7 +420,7 @@ full:
 	}
 
   for (i = 0; i < n_pkts; ++i) {
-	  print_pkt_header(hdrs[i]);
+		print_pkt_header(hdrs[i]);
 	}
 
 	/* fill in packet metadata */

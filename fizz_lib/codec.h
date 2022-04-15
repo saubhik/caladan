@@ -18,3 +18,5 @@ class MyCipher {
   void *decrypt(void *payload, void *aad, int payloadlen, int aadlen, uint64_t seqNo);
 };
 
+
+uint32_t tryParseHeader(void *header, int udplen);

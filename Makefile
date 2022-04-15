@@ -89,6 +89,40 @@ FIZZWRAPPER_LIBS += -lboost_context
 FIZZWRAPPER_LIBS += -lcrypto
 FIZZWRAPPER_LIBS += -ldouble-conversion
 
+# link all fizz libraries, avoid surgery
+FIZZWRAPPER_LIBS += -lmvfst_bufutil
+FIZZWRAPPER_LIBS += -lmvfst_cc_algo
+FIZZWRAPPER_LIBS += -lmvfst_client
+FIZZWRAPPER_LIBS += -lmvfst_codec
+FIZZWRAPPER_LIBS += -lmvfst_codec_decode
+FIZZWRAPPER_LIBS += -lmvfst_codec_packet_number_cipher
+FIZZWRAPPER_LIBS += -lmvfst_codec_pktbuilder
+FIZZWRAPPER_LIBS += -lmvfst_codec_pktrebuilder
+FIZZWRAPPER_LIBS += -lmvfst_codec_types
+FIZZWRAPPER_LIBS += -lmvfst_constants
+FIZZWRAPPER_LIBS += -lmvfst_d6d_state_functions
+FIZZWRAPPER_LIBS += -lmvfst_d6d_types
+FIZZWRAPPER_LIBS += -lmvfst_exception
+FIZZWRAPPER_LIBS += -lmvfst_fizz_client
+FIZZWRAPPER_LIBS += -lmvfst_fizz_handshake
+FIZZWRAPPER_LIBS += -lmvfst_flowcontrol
+FIZZWRAPPER_LIBS += -lmvfst_handshake
+FIZZWRAPPER_LIBS += -lmvfst_happyeyeballs
+FIZZWRAPPER_LIBS += -lmvfst_looper
+FIZZWRAPPER_LIBS += -lmvfst_loss
+FIZZWRAPPER_LIBS += -lmvfst_qlogger
+FIZZWRAPPER_LIBS += -lmvfst_server
+FIZZWRAPPER_LIBS += -lmvfst_socketutil
+FIZZWRAPPER_LIBS += -lmvfst_state_ack_handler
+FIZZWRAPPER_LIBS += -lmvfst_state_functions
+FIZZWRAPPER_LIBS += -lmvfst_state_machine
+FIZZWRAPPER_LIBS += -lmvfst_state_pacing_functions
+FIZZWRAPPER_LIBS += -lmvfst_state_simple_frame_functions
+FIZZWRAPPER_LIBS += -lmvfst_state_stream
+FIZZWRAPPER_LIBS += -lmvfst_state_stream_functions
+FIZZWRAPPER_LIBS += -lmvfst_transport
+FIZZWRAPPER_LIBS += -lmvfst_transport_knobs
+
 # must be first
 all:
 	$(MAKE) libs
