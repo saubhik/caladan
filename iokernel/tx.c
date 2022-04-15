@@ -295,7 +295,11 @@ void print_pkt_contents(struct tx_net_hdr *hdr) {
   }
 }
 
-
+void print_pkt_header(struct tx_net_hdr *hdr) {
+  struct udp_hdr *udphdr_enc = (struct udp_hdr *)(hdr->payload + UDP_OFFSET);
+  int pktlen = ntoh16(udphdr_enc->len) - sizeof(struct udp_hdr);
+	log_info("packet length: %d", pktlen);
+}
 
 /*
  * Process a batch of outgoing packets.
@@ -417,9 +421,7 @@ full:
 	}
 
   for (i = 0; i < n_pkts; ++i) {
-	  print_pkt_contents(hdrs[i]);
-	  do_encrypt(seg_hdrs[i]);
-	  print_pkt_contents(hdrs[i]);
+	  print_pkt_header(hdrs[i]);
 	}
 
 	/* fill in packet metadata */

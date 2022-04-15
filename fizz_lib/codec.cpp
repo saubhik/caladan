@@ -8,6 +8,12 @@
 #include <fizz/record/Types.h>
 #include <folly/ExceptionWrapper.h>
 #include <folly/String.h>
+#include <quic/QuicConstants.h>
+#include <quic/codec/QuicReadCodec.h>
+#include <folly/io/Cursor.h>
+#include <quic/codec/Decode.h>
+#include <quic/codec/PacketNumber.h>
+
 
 #include <list>
 #include <stdexcept>
@@ -42,4 +48,21 @@ void *MyCipher::decrypt(void *payload, void *aad, int payload_and_tail, int aadl
   std::unique_ptr<IOBuf> aadbuf = IOBuf::takeOwnership(aad, aadlen, dummyfree);
   auto decrypted = cipher->decrypt(std::move(ciphertext), aadbuf.get(), seqNo);
   return (void *)std::move(decrypted).get();
+}
+
+
+uint32_t tryParseHeader(void *header, int udplen) {
+  std::unique_ptr<IOBuf> data = IOBuf::takeOwnership(header, udplen, dummyfree);
+  folly::io::Cursor cursor(data.get());
+  if (!cursor.canAdvance(sizeof(uint8_t))) {
+    return std::numeric_limits<uint32_t>::max();
+  }
+  uint8_t initialByte = cursor.readBE<uint8_t>();
+  auto headerForm = quic::getHeaderForm(initialByte);
+  if (headerForm == quic::HeaderForm::Long) {
+    return std::numeric_limits<uint32_t>::max();
+  }
+  // Assumption:
+  // constexpr size_t kDefaultConnectionIdSize = 8;
+  return 1;
 }
