@@ -15,8 +15,8 @@
 #include <base/list.h>
 #include <iokernel/queue.h>
 
-#define MBUF_DEFAULT_LEN	131072
-#define MBUF_DEFAULT_HEADROOM	128
+#define MBUF_DEFAULT_LEN	65536
+#define MBUF_DEFAULT_HEADROOM	60
 
 
 struct mbuf {
@@ -38,15 +38,12 @@ struct mbuf {
 	unsigned long   release_data;	/* data for the release method */
 	void		(*release)(struct mbuf *m); /* frees the mbuf */
 
-	unsigned long aead_index; /* for encryption inside iokernel */
-	unsigned long header_cipher_index; /* for encryption inside iokernel */
-
 	/* TCP fields */
 	struct list_node link;	    /* list node for RX and TX queues */
 	uint64_t	timestamp;  /* the time the packet was last sent */
 	uint32_t	seg_seq;    /* the first seg number */
 	uint32_t	seg_end;    /* the last seg number (noninclusive) */
-	uint8_t		flags;	    /* which flags were set? */
+	uint8_t		flags;	    /* which flags were set? For UDP: whether packet contains cipher meta */
 	atomic_t	ref;	    /* a reference count for the mbuf */
 };
 
@@ -266,6 +263,7 @@ static inline void mbuf_init(struct mbuf *m, unsigned char *head,
 	m->head_len = head_len;
 	m->data = m->head + reserve_len;
 	m->len = 0;
+	m->flags = 0; /* packet doesn't contain cipher meta by default. */
 }
 
 /**

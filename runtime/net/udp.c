@@ -13,6 +13,7 @@
 #include <runtime/sync.h>
 #include <runtime/thread.h>
 #include <runtime/udp.h>
+#include <stdio.h>
 
 #include "defs.h"
 #include "waitq.h"
@@ -412,17 +413,20 @@ ssize_t udp_write_to(
 	const void *buf,
 	size_t len,
 	const struct netaddr *raddr,
-	void *cipher_meta,
-	ssize_t cipher_meta_len)
+	struct cipher_meta **metas,
+	ssize_t num_metas)
 {
 	struct netaddr addr;
 	ssize_t ret;
+	size_t alloc_sz;
 	struct mbuf *m;
 	void *payload;
-	unsigned int n_pkts;
+	unsigned int n_pkts, data_per_pkt;
 	const uint8_t hdrsz = sizeof(struct tx_net_hdr) + sizeof(struct eth_hdr) +
-		sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
+												sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
 	const uint8_t pkthdrsz = hdrsz - sizeof(struct tx_net_hdr);
+
+	// log_info("udp_write_to received len=%ld with num_metas=%ld", len, num_metas);
 
 	if (len > MAX_BUF_LEN) {
 		log_info("udp_write_to: len = %zu > MAX_BUF_LEN = %d", len, MAX_BUF_LEN);
@@ -455,33 +459,48 @@ ssize_t udp_write_to(
 	// If I want 1,500 B packets, and len = 10,000 B, then I need to send
 	// N = ceil(10,000 / (1,500 - 42)) packets.
 	// 42 B is the total header size = UDP (8 B) + IP (20 B) + Eth (14 B)
-	n_pkts = DIV_CEIL(len, (net_get_mtu() - pkthdrsz));
-	m = net_tx_alloc_mbuf_len(len + n_pkts * hdrsz);
+	data_per_pkt = net_get_mtu() - pkthdrsz;
+	if (num_metas) data_per_pkt -= CIPHER_OVERHEAD;
+	n_pkts = DIV_CEIL(len, data_per_pkt);
+
+	alloc_sz = len;
+	alloc_sz += n_pkts * hdrsz;
+
+	if (num_metas) {
+		/* must have as many cipher_metas as packets */
+		sh_assert(num_metas == n_pkts);
+		alloc_sz += n_pkts * CIPHER_OVERHEAD;
+		alloc_sz += n_pkts * CIPHER_META_SZ;
+	}
+
+	m = net_tx_alloc_mbuf_len(alloc_sz);
 	if (unlikely(!m))
 		return -ENOBUFS;
 
 	/* write datagram payload */
 	/* The buffer will look like (in order from left to right):
 	 * (assuming in total n packets)
-	 * 1. headers for first packet (tx_net_hdr + eth + ip + udp), 76 bytes.
-	 * 2. app data for all packets, maybe 10,000 bytes.
-	 * 3. unallocated space for headers for (n-1) other packets.
+	 * 1. headers. (tx_net_hdr + eth + ip + udp), 60 bytes.
+	 * 2. cipher_metas for all packets. (CIPHER_META_SZ bytes * n_pkts).
+	 * 3. app data for all packets.
+	 * 4. unallocated space for headers for (n-1) packets.
 	 */
-	payload = mbuf_put(m, len + (n_pkts - 1) * hdrsz);
+	payload = mbuf_put(m, alloc_sz - hdrsz);
+
+	if (num_metas) {
+		/* packet contains cipher metadata. */
+		m->flags = 1;
+		for (int i = 0; i < num_metas; ++i) {
+			memcpy(payload, metas[i], CIPHER_META_SZ);
+			payload += CIPHER_META_SZ;
+		}
+	}
+
 	memcpy(payload, buf, len);
 
 	/* override mbuf release method */
 	m->release = udp_tx_release_mbuf;
 	m->release_data = (unsigned long)c;
-
-	if (cipher_meta) {
-		sh_assert(cipher_meta_len == 16);
-		memcpy(&m->aead_index, cipher_meta, 8);
-		memcpy(&m->header_cipher_index, cipher_meta + 8, 8);
-	} else {
-		m->aead_index = 0;
-		m->header_cipher_index = 0;
-	}
 
 	ret = udp_send_raw(m, len, c->e.laddr, addr);
 	if (unlikely(ret)) {
@@ -545,10 +564,10 @@ ssize_t udp_write(
 	udpconn_t *c,
 	const void *buf,
 	size_t len,
-	void *cipher_meta,
-	ssize_t cipher_meta_len)
+	struct cipher_meta **metas,
+	ssize_t num_metas)
 {
-	return udp_write_to(c, buf, len, NULL, cipher_meta, cipher_meta_len);
+	return udp_write_to(c, buf, len, NULL, metas, num_metas);
 }
 
 static void __udp_shutdown(udpconn_t *c)

@@ -6,16 +6,31 @@ typedef struct CiphersC CiphersC;
 
 CiphersC *CiphersC_create();
 
-void CiphersC_computeCiphers(CiphersC *cips, uint8_t *buf, ssize_t bufLen);
+void CiphersC_compute_ciphers(CiphersC *cips, uint8_t *buf, ssize_t buf_len);
 
-void CiphersC_destroy(CiphersC *ciphers);
+void CiphersC_inplace_encrypt(
+	CiphersC *cips,
+	uint64_t aead_index,
+	uint64_t packet_num,
+	void *header,
+	size_t header_len,
+	void *body,
+	size_t body_len);
 
-#if 0
-void *MyCipherC_encrypt(
-	MyCipherC *cipher, void *payload, void *aad, int payload_and_tail,
-	int aadlen, uint64_t seqNo);
+void CiphersC_encrypt_packet_header(
+	CiphersC *cips,
+	uint64_t header_cipher_index,
+	uint8_t header_form,
+	void *header,
+	size_t header_len,
+	void *body,
+	size_t body_len);
 
-void *MyCipherC_decrypt(
-	MyCipherC *cipher, void *payload, void *aad, int payload_and_tail,
-	int aadlen, uint64_t seqNo);
-#endif
+//void CiphersC_encrypt_packet_header(
+//	CipherC *cips,
+//	uint64_t header_cipher_index,
+//	uint8_t header_form,
+//	uint64_t header_len,
+//	void* buf);
+
+void CiphersC_destroy(CiphersC *cips);

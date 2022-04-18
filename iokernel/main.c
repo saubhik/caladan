@@ -18,6 +18,9 @@
 struct iokernel_cfg cfg;
 struct dataplane dp;
 
+/* for initializing encryption */
+CiphersC *cips;
+
 bool allowed_cores_supplied;
 DEFINE_BITMAP(input_allowed_cores, NCPU);
 
@@ -77,6 +80,13 @@ static int run_init_handlers(const char *phase, const struct init_entry *h,
  */
 void dataplane_loop(void)
 {
+#if 1
+	uint64_t st;
+	uint64_t tot_elapsed;
+	uint64_t count;
+	uint64_t loop_time;
+	uint64_t max_loop_time;
+#endif
 	bool work_done;
 #ifdef STATS
 	uint64_t next_log_time = microtime();
@@ -95,8 +105,17 @@ void dataplane_loop(void)
 			rte_lcore_id());
 	fflush(stdout);
 
+#if 1
+	tot_elapsed = 0;
+	count = 0;
+	max_loop_time = 0;
+#endif
+
 	/* run until quit or killed */
 	for (;;) {
+#if 1
+		st = microtime();
+#endif
 		work_done = false;
 
 		/* handle a burst of ingress packets */
@@ -120,6 +139,21 @@ void dataplane_loop(void)
 			dp_clients_rx_control_lrpcs();
 
 		STAT_INC(BATCH_TOTAL, IOKERNEL_RX_BURST_SIZE);
+
+#if 1
+		loop_time = microtime() - st;
+		tot_elapsed += loop_time;
+		max_loop_time = MAX(max_loop_time, loop_time);
+		++count;
+
+		if (count == 5000000) {
+			log_info("avg loop time = %f", (double) tot_elapsed / count);
+			log_info("max loop time = %ld", max_loop_time);
+			tot_elapsed = 0;
+			max_loop_time = 0;
+			count = 0;
+		}
+#endif
 
 #ifdef STATS
 		if (microtime() > next_log_time) {
@@ -206,6 +240,8 @@ int main(int argc, char *argv[])
 	if (ret)
 		return ret;
 
+	cips = CiphersC_create();
 	dataplane_loop();
+	CiphersC_destroy(cips);
 	return 0;
 }

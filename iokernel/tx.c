@@ -16,6 +16,9 @@
 #include "defs.h"
 #include "base/byteorder.h"
 
+#include <signal.h>
+#include <stdio.h>
+
 #define TX_PREFETCH_STRIDE 2
 #define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 128)
 #define UDP_OFFSET 34
@@ -256,71 +259,130 @@ full:
 	stats[TX_PULLED] += pulltotal;
 
 	/* UDP GSO */
-	char *curr;
-	unsigned int len, segs, m;
-	struct udp_hdr *udphdr;
+	char *chunk, *chunk_cm, *dest;
+	unsigned int data_len, segs, m;
+	unsigned long pkt_len;
+	struct udp_hdr *udp_hdr;
 	struct tx_net_hdr *shdr;
 	struct thread *seg_ts[TX_MAX_SEGS];
 	const struct tx_net_hdr *seg_hdrs[TX_MAX_SEGS];
 	static struct rte_mbuf *bufs[TX_MAX_SEGS];
+	struct cipher_meta *cm;
 
 	m = n_bufs;  // number of segmented packets.
 	for (i = n_bufs; i < n_pkts; ++i) {
-		/* Filter small & non-UDP packets. */
-		if (hdrs[i]->len <= MTU_SIZE) {
+		/* Filter non-cipher packets. */
+		if (!hdrs[i]->pad) {
 			seg_ts[m] = threads[i];
 			seg_hdrs[m++] = hdrs[i];
 			continue;
 		}
 
-		/* Get actual length of the payload (assuming UDP). */
-		udphdr = (struct udp_hdr *)(hdrs[i]->payload + UDP_OFFSET);
-		len = ntoh16(udphdr->len) - sizeof(struct udp_hdr);
+		/* Get the number of segments (segs) & data length (data_len).
+		 * We have:
+		 * hdrs[i]->len + 18 = 60 * segs + 41 * segs + data_len + 16 * segs
+		 * where,
+		 * tx_net_hdr + eth_hdr + ip_hdr + udp_hdr = 60
+		 * & CIPHER_META_SZ = 41
+		 * & CIPHER_OVERHEAD = 16
+		 */
+		udp_hdr = (struct udp_hdr *) (hdrs[i]->payload + UDP_OFFSET);
+		data_len = ntoh16(udp_hdr->len) - 8;
+		segs = hdrs[i]->len + 18 - data_len;
+		segs /= 60 + CIPHER_META_SZ + CIPHER_OVERHEAD;
 
-		/* Get the number of segments.
-		 * 76 = 34 (tx_net_hdr) + 14 (eth_hdr) + 20 (ip_hdr) + 8 (udp_hdr)
-		 * Get the number of times the above size is allocated in the buffer.
-		 * Should be equal to DIV_CEIL(len / 1458) */
-		segs = (hdrs[i]->len + sizeof (struct tx_net_hdr) - len) / 76;
+		/* Get the pointer to the end of data */
+		chunk = hdrs[i]->payload + 42 + CIPHER_META_SZ * segs;
+		chunk += data_len;
 
-		/* Get the pointer to the last app data chunk. */
-		curr = hdrs[i]->payload + 42;  // pointer to first segment
-		curr += 1458 * (segs - 1);     // pointer to last segment
+		/* Get the cipher meta for the last chunk */
+		chunk_cm = hdrs[i]->payload + 42 + CIPHER_META_SZ * (segs - 1);
 
-		/* Perform (segs - 1) memory "moves" (overlapping src & dest). */
-		for (j = 1; j <= segs - 1; ++j) {
-			memmove(curr + (segs - j) * 76, curr,
-							j == 1 ? len - 1458 * (segs - 1) : 1458);
-			curr -= 1458;
+#if 0
+		if (segs == 2) {
+			log_info("Before processing:");
+			for (int p = 0; p < (hdrs[i]->len + 18); ++p) {
+				printf("%02x ", *((uint8_t *) (hdrs[i] + p)));
+				if (p % 64 == 63) printf("\n");
+			}
+			log_info("Done");
 		}
+#endif
 
-		/* Perform (segs - 1) memory copies for headers. */
-		curr -= 76;
-		for (j = 1; j <= segs - 1; ++j) {
-			memcpy(curr + 1534, curr, 76);
+		/* Perform encryption & memory ops, begin from the last chunk */
+		for (j = 1; j <= segs; ++j) {
+			/* Consider the (chunk_len)-byte chunk at curr. */
+			cm = (struct cipher_meta *) (chunk_cm);
+			pkt_len = cm->header_len + cm->body_len + CIPHER_OVERHEAD;
+			chunk -= pkt_len - CIPHER_OVERHEAD;
+
+			CiphersC_inplace_encrypt(
+				cips,
+				cm->aead_index,
+				cm->packet_num,
+				chunk,
+				cm->header_len,
+				chunk + cm->header_len,
+				cm->body_len + CIPHER_OVERHEAD);
+
+			CiphersC_encrypt_packet_header(
+				cips,
+				cm->header_cipher_index,
+				cm->header_form,
+				chunk,
+				cm->header_len,
+				chunk + cm->header_len,
+				cm->body_len + CIPHER_OVERHEAD);
+
+#if 0
+			if (segs == 2) {
+				for (int p = 0; p < (hdrs[i]->len + 18); ++p) {
+					printf("%02x ", *((uint8_t *) (hdrs[i] + p)));
+					if (p % 64 == 63) printf("\n");
+				}
+				log_info("Done");
+			}
+#endif
+
+			dest = chunk;
+			dest += (segs - j) * 60;
+			dest += (segs - j) * CIPHER_OVERHEAD;
+
+			/* chunk has expanded by CIPHER_OVERHEAD */
+			if (dest != chunk)
+				memmove(dest, chunk, pkt_len);
+
+			/* Perform memory moves for headers.
+			 * "memmove" since dest and src may overlap.
+			 * This may corrupt cm (for first chunk). Do not use cm below. */
+			dest -= 60;
+			memmove(dest, hdrs[i], 60);
+
+#if 0
+			if (segs == 2) {
+				log_info("After processing j = %d (from last)", j);
+				for (int p = 0; p < (hdrs[i]->len + 18); ++p) {
+					printf("%02x ", *((uint8_t *) (hdrs[i] + p)));
+					if (p % 64 == 63) printf("\n");
+				}
+				log_info("Done");
+			}
+#endif
 
 			/* Update tx_net_hdr, udp_hdr, ip_hdr len fields. */
-			shdr = (struct tx_net_hdr *) curr;
-			shdr->len = MTU_SIZE;
-			shdr->completion_data = 0;
+			shdr = (struct tx_net_hdr *) dest;
+			shdr->len = 42 + pkt_len;
+			if (j > 1) shdr->completion_data = 0;
 			*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
 			*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
 
-			seg_ts[m] = threads[i];
-			seg_hdrs[m++] = shdr;
+			seg_ts[m+segs-j] = threads[i];
+			seg_hdrs[m+segs-j] = shdr;
 
-			curr += 1534;
+			chunk_cm -= CIPHER_META_SZ;
 		}
 
-		/* Update tx_net_hdr, udp_hdr, ip_hdr len fields.
-		 * This one has completion_data == m. */
-		shdr = (struct tx_net_hdr *) curr;
-		shdr->len = len - 1458 * (segs - 1) + 42;
-		*(uint16_t *)(shdr->payload + 38) = hton16(shdr->len - 34);
-		*(uint16_t *)(shdr->payload + 16) = hton16(shdr->len - 14);
-
-		seg_ts[m] = threads[i];
-		seg_hdrs[m++] = shdr;
+		m += segs;
 	}
 
 	n_pkts = m;

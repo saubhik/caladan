@@ -6,6 +6,32 @@
 
 namespace quic {
 
+enum class HeaderForm : bool {
+	Long = 1,
+	Short = 0,
+};
+
+constexpr auto kMaxPacketNumEncodingSize = 4;
+
+struct LongHeader {
+	static constexpr uint8_t kFixedBitMask = 0x40;
+	static constexpr uint8_t kPacketTypeMask = 0x30;
+	static constexpr uint8_t kReservedBitsMask = 0x0c;
+	static constexpr uint8_t kPacketNumLenMask = 0x03;
+	static constexpr uint8_t kTypeBitsMask = 0x0F;
+};
+
+struct ShortHeader {
+	// There is also a spin bit which is 0x20 that we don't currently implement.
+	static constexpr uint8_t kFixedBitMask = 0x40;
+	static constexpr uint8_t kReservedBitsMask = 0x18;
+	static constexpr uint8_t kKeyPhaseMask = 0x04;
+	static constexpr uint8_t kPacketNumLenMask = 0x03;
+	static constexpr uint8_t kTypeBitsMask = 0x1F;
+};
+
+size_t parsePacketNumberLength(uint8_t initialByte);
+
 using HeaderProtectionMask = std::array<uint8_t, 16>;
 using Sample = std::array<uint8_t, 16>;
 

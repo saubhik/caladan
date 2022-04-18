@@ -112,9 +112,10 @@ $(test_targets): $(test_obj) libbase.a libruntime.a libnet.a libfizzwrapper.a ba
 	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS)
 
 # general build rules for all targets
-src = $(base_src) $(net_src) $(runtime_src) $(iokernel_src) $(test_src)
+src = $(base_src) $(net_src) $(runtime_src) $(iokernel_src) $(fizz_c_src) $(test_src)
+cppsrc = $(fizz_cpp_src)
 asm = $(runtime_asm)
-obj = $(src:.c=.o) $(asm:.S=.o)
+obj = $(src:.c=.o) $(cppsrc:.cpp=.o) $(asm:.S=.o)
 dep = $(obj:.o=.d)
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -131,6 +132,8 @@ endif
 	@$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 %.o: %.S
 	$(CC) $(CFLAGS) -c $< -o $@
+%.d: %.cpp
+	@$(CXX) $(CXXFLAGS) $< -MM -MT $(@:.d=.o) >$@
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

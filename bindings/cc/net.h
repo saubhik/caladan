@@ -10,9 +10,12 @@ extern "C" {
 #include <base/log.h>
 }
 
+#include <csignal>
 #include <string>
 
 namespace rt {
+
+typedef struct cipher_meta CipherMeta;
 
 struct netaddr StringToNetaddr(const std::string &str);
 
@@ -77,25 +80,25 @@ class UdpConn : public NetConn {
   }
 
   // Writes a datagram and sets to remote address.
-  ssize_t WriteTo(
+	ssize_t WriteTo(
 		const void *buf,
 		size_t len,
 		const netaddr *raddr,
-		void *cipherMeta,
-		ssize_t cipherMetaLen) {
-    return udp_write_to(c_, buf, len, raddr, cipherMeta, cipherMetaLen);
-  }
+		rt::CipherMeta **cipherMetas,
+		ssize_t numCipherMetas) {
+		return udp_write_to(c_, buf, len, raddr, cipherMetas, numCipherMetas);
+	}
 
   // Reads a datagram.
   ssize_t Read(void *buf, size_t len) { return udp_read(c_, buf, len); }
 
   // Writes a datagram.
-  ssize_t Write(
+	ssize_t Write(
 		const void *buf,
 		size_t len,
-		void *cipherMeta,
-		ssize_t cipherMetaLen) {
-		return udp_write(c_, buf, len, cipherMeta, cipherMetaLen);
+		rt::CipherMeta **cipherMetas,
+		ssize_t numCipherMetas) {
+		return udp_write(c_, buf, len, cipherMetas, numCipherMetas);
 	}
 
 	// Writes a datagram.

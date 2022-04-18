@@ -22,6 +22,22 @@ class Ciphers {
 		uint64_t aeadHashIndex,
 		uint64_t headerCipherHashIndex);
 
+	void inplaceEncrypt(
+		uint64_t aeadHashIndex,
+		uint64_t packetNum,
+		void *header,
+		size_t headerLen,
+		void *body,
+		size_t bodyLen);
+
+	void encryptPacketHeader(
+		uint64_t headerCipherIndex,
+		HeaderForm headerForm,
+		uint8_t *header,
+		size_t headerLen,
+		uint8_t *body,
+		size_t bodyLen);
+
  private:
 	fizz::server::State state_;
 	FizzCryptoFactory cryptoFactory_;

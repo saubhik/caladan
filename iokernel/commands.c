@@ -140,7 +140,7 @@ bool commands_rx(void)
 	struct buf_hdr *hdrs[IOKERNEL_CMD_BURST_SIZE];
 	struct rte_mbuf *bufs[IOKERNEL_CMD_BURST_SIZE];
 	struct thread *threads[IOKERNEL_CMD_BURST_SIZE];
-	int i, j;
+	int i;
 	static unsigned int pos = 0;
 	pair pr = {0, 0};
 	struct thread *t;
@@ -162,35 +162,24 @@ bool commands_rx(void)
 			(struct buf_hdr **) &hdrs, (struct thread **) &threads);
 	}
 
-	STAT_INC(COMMANDS_PULLED, n_bufs);
+	STAT_INC(COMMANDS_PULLED, pr.n_bufs);
 
 	pos++;
 	for (i = 0; i < pr.n_bufs; i++)
 		rte_pktmbuf_free(bufs[i]);
 
-	if (pr.n_hdrs) {
-		CiphersC *cips = CiphersC_create();
+	// Process the hdrs[i].
+	for (i = 0; i < pr.n_hdrs; ++i) {
+		t = threads[i];
+		hdr = hdrs[i];
 
-		// Process the hdrs[i].
-		for (i = 0; i < pr.n_hdrs; ++i) {
-			t = threads[i];
-			hdr = hdrs[i];
+		/* reference count @p so it doesn't get freed before the completion */
+		proc_get(t->p);
 
-			/* reference count @p so it doesn't get freed before the completion */
-			proc_get(t->p);
+		CiphersC_compute_ciphers(cips, (uint8_t *) hdr->payload, hdr->len);
 
-			for (j = 0; j < hdr->len; ++j) {
-				printf("%2x,", (uint8_t) hdr->payload[j]);
-			}
-			printf("\n");
-
-			CiphersC_computeCiphers(cips, (uint8_t *) hdr->payload, hdr->len);
-
-			// Give up on notifying the runtime if this returns false.
-			buf_send_completion(t, hdr);
-		}
-
-		CiphersC_destroy(cips);
+		// Give up on notifying the runtime if this returns false.
+		buf_send_completion(t, hdr);
 	}
 
 	return (pr.n_bufs + pr.n_hdrs) > 0;

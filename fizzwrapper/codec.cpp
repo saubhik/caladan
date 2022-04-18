@@ -202,6 +202,49 @@ void Ciphers::computeCiphers(
 	headerCiphers[headerCipherHashIndex] = std::move(headerCipher);
 }
 
+void Ciphers::inplaceEncrypt(
+	uint64_t aeadHashIndex,
+	uint64_t packetNum,
+	void *header,
+	size_t headerLen,
+	void *body,
+	size_t bodyLen) {
+	std::unique_ptr<folly::IOBuf> plaintext = folly::IOBuf::wrapBuffer(body, bodyLen);
+	std::unique_ptr<folly::IOBuf> associatedData = folly::IOBuf::wrapBuffer(header, headerLen);
+	plaintext->trimEnd(aeadCiphers.at(aeadHashIndex)->getCipherOverhead());
+	aeadCiphers.at(aeadHashIndex)->inplaceEncrypt(
+		std::move(plaintext), associatedData.get(), packetNum);
+}
+
+void Ciphers::encryptPacketHeader(
+	uint64_t headerCipherIndex,
+	HeaderForm headerForm,
+	uint8_t *header,
+	size_t headerLen,
+	uint8_t *body,
+	size_t bodyLen) {
+	// Header encryption.
+	auto packetNumberLength = parsePacketNumberLength(*header);
+	Sample sample;
+	size_t sampleBytesToUse = kMaxPacketNumEncodingSize - packetNumberLength;
+	// If there were less than 4 bytes in the packet number, some of the payload
+	// bytes will also be skipped during sampling.
+	CHECK_GE(bodyLen, sampleBytesToUse + sample.size());
+	body += sampleBytesToUse;
+	memcpy(sample.data(), body, sample.size());
+
+	folly::MutableByteRange initialByteRange(static_cast<uint8_t *>(header), 1);
+	folly::MutableByteRange packetNumByteRange(
+		header + headerLen - packetNumberLength, packetNumberLength);
+	if (headerForm == HeaderForm::Short) {
+		headerCiphers.at(headerCipherIndex)->encryptShortHeader(
+			sample, initialByteRange, packetNumByteRange);
+	} else {
+		headerCiphers.at(headerCipherIndex)->encryptLongHeader(
+			sample, initialByteRange, packetNumByteRange);
+	}
+}
+
 Ciphers::~Ciphers() = default;
 
 #if 0
