@@ -80,7 +80,7 @@ static int run_init_handlers(const char *phase, const struct init_entry *h,
  */
 void dataplane_loop(void)
 {
-#if 1
+#if 0
 	uint64_t st;
 	uint64_t tot_elapsed;
 	uint64_t count;
@@ -105,7 +105,7 @@ void dataplane_loop(void)
 			rte_lcore_id());
 	fflush(stdout);
 
-#if 1
+#if 0
 	tot_elapsed = 0;
 	count = 0;
 	max_loop_time = 0;
@@ -113,7 +113,7 @@ void dataplane_loop(void)
 
 	/* run until quit or killed */
 	for (;;) {
-#if 1
+#if 0
 		st = microtime();
 #endif
 		work_done = false;
@@ -140,7 +140,7 @@ void dataplane_loop(void)
 
 		STAT_INC(BATCH_TOTAL, IOKERNEL_RX_BURST_SIZE);
 
-#if 1
+#if 0
 		loop_time = microtime() - st;
 		tot_elapsed += loop_time;
 		max_loop_time = MAX(max_loop_time, loop_time);

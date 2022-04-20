@@ -18,7 +18,7 @@
 #include "defs.h"
 #include "waitq.h"
 
-#define UDP_IN_DEFAULT_CAP	512
+#define UDP_IN_DEFAULT_CAP	1024
 #define UDP_OUT_DEFAULT_CAP	2048
 #define DIV_CEIL(a, b)  ((a) / (b) + ((a) % (b) != 0))
 
@@ -425,8 +425,6 @@ ssize_t udp_write_to(
 	const uint8_t hdrsz = sizeof(struct tx_net_hdr) + sizeof(struct eth_hdr) +
 												sizeof(struct ip_hdr) + sizeof(struct udp_hdr);
 	const uint8_t pkthdrsz = hdrsz - sizeof(struct tx_net_hdr);
-
-	// log_info("udp_write_to received len=%ld with num_metas=%ld", len, num_metas);
 
 	if (len > MAX_BUF_LEN) {
 		log_info("udp_write_to: len = %zu > MAX_BUF_LEN = %d", len, MAX_BUF_LEN);
