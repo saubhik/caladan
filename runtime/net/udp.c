@@ -457,16 +457,17 @@ ssize_t udp_write_to(
 	// If I want 1,500 B packets, and len = 10,000 B, then I need to send
 	// N = ceil(10,000 / (1,500 - 42)) packets.
 	// 42 B is the total header size = UDP (8 B) + IP (20 B) + Eth (14 B)
-	data_per_pkt = net_get_mtu() - pkthdrsz;
-	if (num_metas) data_per_pkt -= CIPHER_OVERHEAD;
-	n_pkts = DIV_CEIL(len, data_per_pkt);
+	if (num_metas) {
+		n_pkts = num_metas;
+	} else {
+		data_per_pkt = net_get_mtu() - pkthdrsz;
+		n_pkts = DIV_CEIL(len, data_per_pkt);
+	}
 
 	alloc_sz = len;
 	alloc_sz += n_pkts * hdrsz;
 
 	if (num_metas) {
-		/* must have as many cipher_metas as packets */
-		sh_assert(num_metas == n_pkts);
 		alloc_sz += n_pkts * CIPHER_OVERHEAD;
 		alloc_sz += n_pkts * CIPHER_META_SZ;
 	}

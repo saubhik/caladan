@@ -20,9 +20,8 @@
 #include <stdio.h>
 
 #define TX_PREFETCH_STRIDE 2
-#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 128)
+#define TX_MAX_SEGS (IOKERNEL_TX_BURST_SIZE * 64)
 #define UDP_OFFSET 34
-#define MTU_SIZE 1500
 
 unsigned int nrts;
 struct thread *ts[NCPU];
