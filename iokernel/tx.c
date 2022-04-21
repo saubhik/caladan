@@ -163,6 +163,7 @@ static int drain_overflow_queue(struct proc *p, int n)
 {
 	int i = 0;
 	while (p->nr_overflows > 0 && i < n) {
+		log_info("draining overflow queue");
 		if (!rx_send_to_runtime(p, p->next_thread_rr++, RX_NET_COMPLETE,
 				p->overflow_queue[--p->nr_overflows])) {
 			p->nr_overflows++;

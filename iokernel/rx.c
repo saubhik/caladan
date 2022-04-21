@@ -63,9 +63,12 @@ bool rx_send_to_runtime(struct proc *p, uint32_t hash, uint64_t cmd,
 	if (likely(sched_threads_active(p) > 0)) {
 		/* use the flow table to route to an active thread */
 		th = &p->threads[p->flow_tbl[hash % p->thread_count]];
-		return lrpc_send(&th->rxq, cmd, payload);
+		if (unlikely(!lrpc_send(&th->rxq, cmd, payload))) {
+			log_info("rx_send_to_runtime: This should not happen!");
+			return false;
+		}
+		return true;
 	}
-
 
 	if (!cfg.noidlefastwake)
 		sched_add_core(p);

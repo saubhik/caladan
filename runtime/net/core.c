@@ -75,6 +75,7 @@ static void net_rx_send_completion(unsigned long completion_data)
 	k = getk();
 	if (unlikely(!lrpc_send(&k->txcmdq, TXCMD_NET_COMPLETE,
 				completion_data))) {
+		log_info("net_rx_send_completion: This should not happen!");
 		WARN();
 	}
 	putk();
@@ -248,6 +249,7 @@ static void iokernel_softirq_poll(struct kthread *k)
 					    MBUF_DEFAULT_LEN);
 			m = net_rx_alloc_mbuf(hdr);
 			if (unlikely(!m)) {
+				log_info("iokernel_softirq_poll: dropped!");
 				STAT(DROPS)++;
 				continue;
 			}
@@ -401,6 +403,7 @@ static int net_tx_iokernel(struct mbuf *m)
 	shmptr_t shm = ptr_to_shmptr(&netcfg.tx_region, hdr, len + sizeof(*hdr));
 
 	if (unlikely(!lrpc_send(&k->txpktq, TXPKT_NET_XMIT, shm))) {
+		log_info("net_tx_iokernel: out of lrpc q");
 		mbuf_pull_hdr(m, *hdr);
 		return -1;
 	}
@@ -419,6 +422,7 @@ int net_tx_buf_iokernel(struct buf *b)
 	hdr->len = len;
 	shmptr_t shm = ptr_to_shmptr(&netcfg.tx_region, hdr, len + sizeof(*hdr));
 	if (unlikely(!lrpc_send(&k->txcmdq, TXCMD_NET_BUF, shm))) {
+		log_info("net_tx_buf_iokernel: out of lrpc q");
 		putk();
 		return -1;
 	}
@@ -433,8 +437,10 @@ static void net_tx_raw(struct mbuf *m)
 
 	k = getk();
 	/* drain pending overflow packets first */
-	if (unlikely(!mbufq_empty(&k->txpktq_overflow)))
+	if (unlikely(!mbufq_empty(&k->txpktq_overflow))) {
+		log_info("Calling net_tx_drain_overflow");
 		net_tx_drain_overflow();
+	}
 
 	STAT(TX_PACKETS)++;
 	STAT(TX_BYTES) += len;

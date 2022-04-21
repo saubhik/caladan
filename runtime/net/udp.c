@@ -18,7 +18,7 @@
 #include "defs.h"
 #include "waitq.h"
 
-#define UDP_IN_DEFAULT_CAP	1024
+#define UDP_IN_DEFAULT_CAP	(1024*16)
 #define UDP_OUT_DEFAULT_CAP	2048
 #define DIV_CEIL(a, b)  ((a) / (b) + ((a) % (b) != 0))
 
@@ -84,6 +84,7 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 	spin_lock_np(&c->inq_lock);
 	/* drop packet if the ingress queue is full */
 	if (c->inq_len >= c->inq_cap || c->inq_err || c->shutdown) {
+		log_info("c->inq_len=%d, c->inq_cap=%d, c->inq_err=%d, c->shutdown=%d", c->inq_len, c->inq_cap, c->inq_err, c->shutdown);
 		spin_unlock_np(&c->inq_lock);
 		mbuf_drop(m);
 		return;

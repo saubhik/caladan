@@ -99,8 +99,8 @@
 
 static void main_handler(void *arg) {
 	CiphersC *cips;
+	uint8_t *data;
 	uint8_t buf[48];
-	uint8_t data[1458];
 	uint8_t dup_data[1458];
 	uint8_t encrypted_data[1458];
 	double encryptions_per_second;
@@ -128,10 +128,9 @@ static void main_handler(void *arg) {
 	}
 
 	for (i = 0; i < 1442; ++i) {
-		sscanf(chunk_pos, "%2hhx", &data[i]);
+		sscanf(chunk_pos, "%2hhx", &dup_data[i]);
 		chunk_pos += 2;
 	}
-	memcpy(dup_data, data, 1442);
 
 	for (i = 0; i < 1458; ++i) {
 		sscanf(encrypted_chunk_pos, "%2hhx", &encrypted_data[i]);
@@ -143,6 +142,7 @@ static void main_handler(void *arg) {
 	CiphersC_compute_ciphers(cips, (uint8_t *) buf, 48);
 	start_us = microtime();
 	for (i = 0; i < ITERS; i++) {
+		data = malloc(sizeof(*data) * 1458);
 		memcpy(data, dup_data, 1442);
 		CiphersC_inplace_encrypt(cips, cm.aead_index, cm.packet_num, data,
 														 cm.header_len, data + cm.header_len,
@@ -150,6 +150,7 @@ static void main_handler(void *arg) {
 		CiphersC_encrypt_packet_header(cips, cm.header_cipher_index, cm.header_form,
 																	 data, cm.header_len, data + cm.header_len,
 																	 cm.body_len + CIPHER_OVERHEAD);
+		free(data);
 	}
 	encryptions_per_second =
 		(double) ITERS / ((microtime() - start_us) * 0.000001);

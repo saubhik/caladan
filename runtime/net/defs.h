@@ -10,6 +10,8 @@
 #include <runtime/net.h>
 #include <runtime/rculist.h>
 
+#include <signal.h>
+
 #include "../defs.h"
 
 /* Maximum buffer for TX packets */
@@ -87,6 +89,8 @@ static inline void net_tx_ip_or_free(struct mbuf *m, uint8_t proto,
  */
 static inline void mbuf_drop(struct mbuf *m)
 {
+	// raise(SIGABRT);
+	log_info("inside mbuf_drop");
 	mbuf_free(m);
 	STAT(DROPS)++;
 }
