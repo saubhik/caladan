@@ -109,7 +109,9 @@ iokerneld: $(iokernel_obj) libbase.a libnet.a libruntime.a libfizzwrapper.a base
 	-lpthread -lnuma -ldl
 
 $(test_targets): $(test_obj) libbase.a libruntime.a libnet.a libfizzwrapper.a base/base.ld
-	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS)
+	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS) \
+	libfizzwrapper.a $(FIZZWRAPPER_LIBS) ./bindings/cc/librt++.a libruntime.a libnet.a libbase.a \
+	-lstdc++ -ldl
 
 # general build rules for all targets
 src = $(base_src) $(net_src) $(runtime_src) $(iokernel_src) $(fizz_c_src) $(test_src)
