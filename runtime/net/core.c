@@ -75,6 +75,7 @@ static void net_rx_send_completion(unsigned long completion_data)
 	k = getk();
 	if (unlikely(!lrpc_send(&k->txcmdq, TXCMD_NET_COMPLETE,
 				completion_data))) {
+		log_info("net_rx_send_completion: This should not happen!");
 		WARN();
 	}
 	putk();
@@ -248,6 +249,7 @@ static void iokernel_softirq_poll(struct kthread *k)
 					    MBUF_DEFAULT_LEN);
 			m = net_rx_alloc_mbuf(hdr);
 			if (unlikely(!m)) {
+				log_info("iokernel_softirq_poll: dropped!");
 				STAT(DROPS)++;
 				continue;
 			}
@@ -256,6 +258,10 @@ static void iokernel_softirq_poll(struct kthread *k)
 
 		case RX_NET_COMPLETE:
 			mbuf_free((struct mbuf *)payload);
+			break;
+
+		case RX_NET_BUF_COMPLETE:
+			buf_free((struct buf *)payload);
 			break;
 
 		default:
@@ -296,6 +302,20 @@ void net_tx_release_mbuf(struct mbuf *m)
 }
 
 /**
+ * net_tx_release_buf - the default TX buf release handler
+ * @b: the buf to free
+ *
+ * Normally, this handler will get called automatically. If you override
+ * buf.release(), call this method manually.
+ */
+void net_tx_release_buf(struct buf *b)
+{
+	preempt_disable();
+	tcache_free(&perthread_get(net_tx_buf_pt), b);
+	preempt_enable();
+}
+
+/**
  * net_tx_alloc_mbuf - allocates an mbuf for transmitting.
  *
  * Returns an mbuf, or NULL if out of memory.
@@ -303,6 +323,26 @@ void net_tx_release_mbuf(struct mbuf *m)
 struct mbuf *net_tx_alloc_mbuf()
 {
   return net_tx_alloc_mbuf_len(net_get_mtu());
+}
+
+struct buf *net_tx_alloc_buf_len(unsigned int len)
+{
+	struct buf *b;
+	unsigned char *head;
+
+	preempt_disable();
+	b = tcache_alloc(&perthread_get(net_tx_buf_pt));
+	if (unlikely(!b)) {
+		preempt_enable();
+		log_warn_ratelimited("net: out of tx buffers");
+		return NULL;
+	}
+	preempt_enable();
+
+	head = (unsigned char *)b + BUF_HEAD_LEN;
+	buf_init(b, head, len, sizeof(struct buf_hdr));
+	b->release = net_tx_release_buf;
+	return b;
 }
 
 struct mbuf *net_tx_alloc_mbuf_len(unsigned int len)
@@ -359,13 +399,34 @@ static int net_tx_iokernel(struct mbuf *m)
 	hdr->completion_data = (unsigned long)m;
 	hdr->len = len;
 	hdr->olflags = m->txflags;
+	hdr->pad = (unsigned short) m->flags; /* whether packet contains cipher meta. */
 	shmptr_t shm = ptr_to_shmptr(&netcfg.tx_region, hdr, len + sizeof(*hdr));
 
 	if (unlikely(!lrpc_send(&k->txpktq, TXPKT_NET_XMIT, shm))) {
+		log_info("net_tx_iokernel: out of lrpc q");
 		mbuf_pull_hdr(m, *hdr);
 		return -1;
 	}
 
+	return 0;
+}
+
+int net_tx_buf_iokernel(struct buf *b)
+{
+	struct kthread *k = getk();
+	unsigned int len = b->len;
+	struct buf_hdr *hdr;
+
+	hdr = (struct buf_hdr *)b->head;
+	hdr->completion_data = (unsigned long)b;
+	hdr->len = len;
+	shmptr_t shm = ptr_to_shmptr(&netcfg.tx_region, hdr, len + sizeof(*hdr));
+	if (unlikely(!lrpc_send(&k->txcmdq, TXCMD_NET_BUF, shm))) {
+		log_info("net_tx_buf_iokernel: out of lrpc q");
+		putk();
+		return -1;
+	}
+	putk();
 	return 0;
 }
 
@@ -376,8 +437,10 @@ static void net_tx_raw(struct mbuf *m)
 
 	k = getk();
 	/* drain pending overflow packets first */
-	if (unlikely(!mbufq_empty(&k->txpktq_overflow)))
+	if (unlikely(!mbufq_empty(&k->txpktq_overflow))) {
+		log_info("Calling net_tx_drain_overflow");
 		net_tx_drain_overflow();
+	}
 
 	STAT(TX_PACKETS)++;
 	STAT(TX_BYTES) += len;

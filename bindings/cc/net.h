@@ -10,9 +10,12 @@ extern "C" {
 #include <base/log.h>
 }
 
+#include <csignal>
 #include <string>
 
 namespace rt {
+
+typedef struct cipher_meta CipherMeta;
 
 struct netaddr StringToNetaddr(const std::string &str);
 
@@ -24,6 +27,10 @@ class NetConn {
   virtual ssize_t Read(void *buf, size_t len) = 0;
   virtual ssize_t Write(const void *buf, size_t len) = 0;
 };
+
+inline ssize_t SendToIOKernel(const void *buf, ssize_t len) {
+	return send_to_iokernel(buf, len);
+}
 
 // UDP Connections.
 class UdpConn : public NetConn {
@@ -73,15 +80,33 @@ class UdpConn : public NetConn {
   }
 
   // Writes a datagram and sets to remote address.
-  ssize_t WriteTo(const void *buf, size_t len, const netaddr *raddr) {
-    return udp_write_to(c_, buf, len, raddr);
-  }
+	ssize_t WriteTo(
+		const void *buf,
+		size_t len,
+		const netaddr *raddr,
+		rt::CipherMeta **cipherMetas,
+		ssize_t numCipherMetas) {
+		return udp_write_to(c_, buf, len, raddr, cipherMetas, numCipherMetas);
+	}
 
   // Reads a datagram.
   ssize_t Read(void *buf, size_t len) { return udp_read(c_, buf, len); }
 
   // Writes a datagram.
-  ssize_t Write(const void *buf, size_t len) { return udp_write(c_, buf, len); }
+	ssize_t Write(
+		const void *buf,
+		size_t len,
+		rt::CipherMeta **cipherMetas,
+		ssize_t numCipherMetas) {
+		return udp_write(c_, buf, len, cipherMetas, numCipherMetas);
+	}
+
+	// Writes a datagram.
+	ssize_t Write(
+		const void *buf,
+		size_t len) {
+		return udp_write(c_, buf, len, nullptr, 0);
+	}
 
   // Shutdown the socket (no more receives).
   void Shutdown() { udp_shutdown(c_); }

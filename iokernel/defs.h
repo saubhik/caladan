@@ -18,6 +18,8 @@
 #include "mlx.h"
 #include "ref.h"
 
+#include "../fizzwrapper/codeccapi.h"
+
 /* #define STATS 1 */
 
 /*
@@ -44,9 +46,9 @@ extern struct iokernel_cfg cfg;
 #define IOKERNEL_NUM_MBUFS		(8192 * 16)
 #define IOKERNEL_NUM_COMPLETIONS	32767
 #define IOKERNEL_OVERFLOW_BATCH_DRAIN	64
-#define IOKERNEL_TX_BURST_SIZE		64
+#define IOKERNEL_TX_BURST_SIZE		128
 #define IOKERNEL_CMD_BURST_SIZE		64
-#define IOKERNEL_RX_BURST_SIZE		64
+#define IOKERNEL_RX_BURST_SIZE		128
 #define IOKERNEL_CONTROL_BURST_SIZE	4
 #define IOKERNEL_POLL_INTERVAL		10
 
@@ -151,10 +153,15 @@ struct proc {
 	void			*mr;
 #endif
 
-	/* Overfloq queue for completion data */
+	/* Overflow queue for completion data */
 	size_t max_overflows;
 	size_t nr_overflows;
 	unsigned long *overflow_queue;
+
+	/* Overflow queue for buf completion data */
+	size_t buf_max_overflows;
+	size_t buf_nr_overflows;
+	unsigned long *buf_overflow_queue;
 
 	/* table of physical addresses for shared memory */
 	physaddr_t		page_paddrs[];
@@ -327,6 +334,13 @@ extern bool rx_send_to_runtime(struct proc *p, uint32_t hash, uint64_t cmd,
  * Initialization
  */
 
+/* encryption class */
+extern CiphersC *cips;
+
+#if 0
+extern unsigned char *packet_data;
+#endif
+
 extern int ksched_init(void);
 extern int sched_init(void);
 extern int simple_init(void);
@@ -358,4 +372,5 @@ extern bool tx_drain_completions(void);
  */
 extern void dp_clients_rx_control_lrpcs(void);
 extern bool commands_rx(void);
+extern bool buf_drain_completions(void);
 extern void dpdk_print_eth_stats(void);

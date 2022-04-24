@@ -34,23 +34,27 @@ struct udpconn;
 typedef struct udpconn udpconn_t;
 
 extern int udp_dial(struct netaddr laddr, struct netaddr raddr,
-		    udpconn_t **c_out);
+	udpconn_t **c_out);
 extern int udp_listen(struct netaddr laddr, udpconn_t **c_out);
 extern struct netaddr udp_local_addr(udpconn_t *c);
 extern struct netaddr udp_remote_addr(udpconn_t *c);
 extern int udp_set_buffers(udpconn_t *c, int read_mbufs, int write_mbufs);
 extern ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
-			     struct netaddr *raddr);
+	struct netaddr *raddr);
 extern ssize_t udp_write_to(udpconn_t *c, const void *buf, size_t len,
-			    const struct netaddr *raddr);
+	const struct netaddr *raddr, struct cipher_meta **metas, ssize_t num_metas);
 extern ssize_t udp_read(udpconn_t *c, void *buf, size_t len);
-extern ssize_t udp_write(udpconn_t *c, const void *buf, size_t len);
+extern ssize_t udp_write(udpconn_t *c, const void *buf, size_t len,
+	struct cipher_meta **metas, ssize_t num_metas);
 extern void udp_shutdown(udpconn_t *c);
 extern void udp_close(udpconn_t *c);
 
 extern void udp_set_nonblocking(udpconn_t *c, bool nonblocking);
 extern struct list_head *udp_get_triggers(udpconn_t *c);
 extern void udp_conn_check_triggers(udpconn_t *c);
+
+/* Send buf to iokernel. */
+extern ssize_t send_to_iokernel(const void *buf, ssize_t len);
 
 /*
  * UDP Parallel API

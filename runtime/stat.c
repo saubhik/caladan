@@ -215,7 +215,7 @@ static void stat_worker_udp(void *arg)
 		}
 		sh_assert(len <= payload_size);
 
-		ret = udp_write_to(c, buf, len, &raddr);
+		ret = udp_write_to(c, buf, len, &raddr, NULL, 0);
 		WARN_ON(ret != len);
 	}
 }

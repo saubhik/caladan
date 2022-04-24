@@ -488,6 +488,8 @@ rewake:
 	return 0;
 }
 
+uint64_t first_time = 0;
+
 /**
  * sched_poll - advance the scheduler during each poll loop iteration
  */
@@ -506,23 +508,28 @@ void sched_poll(void)
 
 	cur_tsc = rdtsc();
 	now = (cur_tsc - start_tsc) / cycles_per_us;
-	if (now - last_time >= IOKERNEL_POLL_INTERVAL) {
-		int i;
-
-		/* retrieve current network device tick */
-		hw_timestamp_update();
-
-		last_time = now;
-		for (i = 0; i < dp.nr_clients; i++)
-			sched_measure_delay(dp.clients[i]);
-	} else {
-		/* check if any idle directpath runtimes have received I/Os */
-		for (i = 0; i < dp.nr_clients; i++) {
-			p = dp.clients[i];
-			if (p->has_directpath && sched_threads_active(p) == 0)
-				sched_detect_io_for_idle_runtime(p);
-		}
+	if (first_time == 0) {
+		first_time = now;
 	}
+
+	// if (now - first_time <= 10000000) {
+		if (now - last_time >= IOKERNEL_POLL_INTERVAL) {
+			int i;
+
+			/* retrieve current network device tick */
+			hw_timestamp_update();
+
+			last_time = now;
+			for (i = 0; i < dp.nr_clients; i++) sched_measure_delay(dp.clients[i]);
+		} else {
+			/* check if any idle directpath runtimes have received I/Os */
+			for (i = 0; i < dp.nr_clients; i++) {
+				p = dp.clients[i];
+				if (p->has_directpath && sched_threads_active(p) == 0)
+					sched_detect_io_for_idle_runtime(p);
+			}
+		}
+	// }
 
 	/*
 	 * fast pass --- runs every poll loop
