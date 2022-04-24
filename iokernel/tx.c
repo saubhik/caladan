@@ -220,6 +220,14 @@ static int tx_drain_queue(struct thread *t, int n, struct tx_net_hdr **hdrs)
 	return i;
 }
 
+#if 0
+struct cipher_meta mock_cm = {.aead_index = 0,
+															.header_cipher_index = 0,
+															.packet_num = 1206709,
+															.header_len = 4,
+															.body_len = 1438,
+															.header_form = 0};
+#endif
 
 /*
  * Process a batch of outgoing packets.
@@ -333,6 +341,17 @@ full:
 				cm->header_len,
 				chunk + cm->header_len,
 				cm->body_len + CIPHER_OVERHEAD);
+
+#if 0
+			CiphersC_inplace_encrypt(cips, mock_cm.aead_index, mock_cm.packet_num,
+															 packet_data, mock_cm.header_len,
+															 packet_data + mock_cm.header_len,
+															 mock_cm.body_len + 16);
+			CiphersC_encrypt_packet_header(
+				cips, mock_cm.header_cipher_index, mock_cm.header_form, packet_data,
+				mock_cm.header_len, packet_data + mock_cm.header_len,
+				mock_cm.body_len + 16);
+#endif
 
 #if 0
 			if (segs == 2) {

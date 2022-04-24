@@ -46,9 +46,9 @@ extern struct iokernel_cfg cfg;
 #define IOKERNEL_NUM_MBUFS		(8192 * 16)
 #define IOKERNEL_NUM_COMPLETIONS	32767
 #define IOKERNEL_OVERFLOW_BATCH_DRAIN	64
-#define IOKERNEL_TX_BURST_SIZE		64
+#define IOKERNEL_TX_BURST_SIZE		128
 #define IOKERNEL_CMD_BURST_SIZE		64
-#define IOKERNEL_RX_BURST_SIZE		64
+#define IOKERNEL_RX_BURST_SIZE		128
 #define IOKERNEL_CONTROL_BURST_SIZE	4
 #define IOKERNEL_POLL_INTERVAL		10
 
@@ -336,6 +336,10 @@ extern bool rx_send_to_runtime(struct proc *p, uint32_t hash, uint64_t cmd,
 
 /* encryption class */
 extern CiphersC *cips;
+
+#if 0
+extern unsigned char *packet_data;
+#endif
 
 extern int ksched_init(void);
 extern int sched_init(void);
