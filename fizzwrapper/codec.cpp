@@ -1,9 +1,9 @@
 #include <folly/ExceptionWrapper.h>
 #include <folly/String.h>
+#include <folly/ssl/OpenSSLPtrTypes.h>
 
 #include <fizz/protocol/Protocol.h>
 #include <fizz/crypto/test/TestUtil.h>
-#include <folly/ssl/OpenSSLPtrTypes.h>
 
 #include <list>
 #include <iostream>
