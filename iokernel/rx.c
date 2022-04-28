@@ -91,8 +91,9 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 	shmptr_t shmptr;
 
 	/* @saubhik: Decrypt UDP packets here */
-	const struct eth_hdr *llhdr;
-	const struct ip_hdr *iphdr;
+	struct eth_hdr *llhdr;
+	struct ip_hdr *iphdr;
+	struct udp_hdr *udphdr;
 	char *data;
 	uint16_t data_len;
 	if (hdr->len >= sizeof(*llhdr)) {
@@ -103,12 +104,18 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 				data = hdr->payload;
 				data += sizeof(struct eth_hdr);
 				data += sizeof(struct ip_hdr);
+				udphdr = (struct udp_hdr *) data;
 				data += sizeof(struct udp_hdr);
 				data_len = hdr->len;
 				data_len -= sizeof(struct eth_hdr);
 				data_len -= sizeof(struct ip_hdr);
 				data_len -= sizeof(struct udp_hdr);
-				ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, data_len);
+				if (ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, data_len)) {
+					/* Fix the lengths in header fields, if decrypted */
+					hdr->len -= CIPHER_OVERHEAD;
+					iphdr->len = hton16(iphdr->len - CIPHER_OVERHEAD);
+					udphdr->len = hton16(udphdr->len - CIPHER_OVERHEAD);
+				}
 			}
 		}
 	}

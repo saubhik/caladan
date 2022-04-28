@@ -7,6 +7,7 @@
 
 namespace quic {
 
+#if 0
 CodecResult ReadCodecCiphers::parseLongHeaderPacket(BufQueue &queue)
 {
 	folly::io::Cursor cursor(queue.front());
@@ -169,6 +170,7 @@ CodecResult ReadCodecCiphers::parseLongHeaderPacket(BufQueue &queue)
 	// @saubhik: No need to parse frames.
 	return RegularQuicPacket(std::move(longHeader));
 }
+#endif
 
 CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 	Buf data, size_t dstConnIdSize, folly::io::Cursor &cursor)
@@ -205,7 +207,7 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 
 	shortHeader->setPacketNumber(packetNum.first);
 	if (shortHeader->getProtectionType() == ProtectionType::KeyPhaseOne) {
-		VLOG(0) << nodeToString(nodeType_) << " cannot read key phase one packet";
+		VLOG(0) << "Cannot read key phase one packet";
 		return CodecResult(Nothing());
 	}
 
@@ -218,6 +220,8 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 		folly::IOBuf::wrapBufferAsValue(data->data(), aadLen);
 	data->trimStart(aadLen);
 
+	VLOG(1) << "Before encryption \n"
+		<< folly::hexlify(data->clone()->moveToFbString());
 	auto decryptAttempt = oneRttReadCipher_->tryDecrypt(
 		std::move(data), &headerData, packetNum.first);
 	if (!decryptAttempt) {
@@ -226,6 +230,8 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 			<< " protectionType=" << (int) protectionType;
 		return CodecResult(Nothing());
 	}
+	VLOG(1) << "After encryption \n"
+		<< folly::hexlify(decryptAttempt.value()->clone()->moveToFbString());
 
 	// @saubhik: We do not need to parse frames.
 	return RegularQuicPacket(std::move(*shortHeader));
@@ -245,14 +251,14 @@ CodecResult ReadCodecCiphers::parsePacket(BufQueue &queue,
 	uint8_t initialByte = cursor.readBE<uint8_t>();
 	auto headerForm = getHeaderForm(initialByte);
 	if (headerForm == HeaderForm::Long) {
-		return parseLongHeaderPacket(queue);
+		return CodecResult(Nothing());
 	}
 
 	// Missing 1-rtt Cipher is the only case we wouldn't consider reset
 	// TODO: support key phase one.
 	if (!oneRttReadCipher_ || !oneRttHeaderCipher_) {
-		VLOG(0) << nodeToString(nodeType_) << " cannot read key phase zero packet";
-		VLOG(0) << "cannot read data="
+		VLOG(0) << "Missing oneRtt ciphers";
+		VLOG(1) << "cannot read data="
 			<< folly::hexlify(queue.front()->clone()->moveToFbString());
 		return CodecResult(
 			CipherUnavailable(queue.move(), 0, ProtectionType::KeyPhaseZero));
@@ -293,17 +299,17 @@ bool updateLargestReceivedPacketNum(AckState &ackState, PacketNum packetNum)
 	return expectedNextPacket != packetNum;
 }
 
-void ReadCodecCiphers::processPacketData(BufQueue &packetQueue)
+bool ReadCodecCiphers::processPacketData(BufQueue &packetQueue)
 {
 	auto packetSize = packetQueue.chainLength();
 	if (packetSize == 0) {
-		return;
+		return false;
 	}
 
 	auto parsedPacket = parsePacket(packetQueue, 0);
 	RegularQuicPacket *regularOptional = parsedPacket.regularPacket();
 	if (!regularOptional) {
-		return;
+		return false;
 	}
 
 	auto packetNum = regularOptional->header.getPacketSequenceNum();
@@ -311,6 +317,7 @@ void ReadCodecCiphers::processPacketData(BufQueue &packetQueue)
 
 	auto &ackState = getAckState(pnSpace);
 	updateLargestReceivedPacketNum(ackState, packetNum);
+	return true;
 }
 
 void ReadCodecCiphers::computeCiphers(void *data, size_t dataLen)
@@ -353,18 +360,20 @@ void ReadCodecCiphers::computeCiphers(void *data, size_t dataLen)
 	}
 }
 
-void ReadCodecCiphers::decrypt(void *data, size_t dataLen)
+bool ReadCodecCiphers::decrypt(void *data, size_t dataLen)
 {
+	bool encrypted = false;
 	BufQueue udpData;
-	udpData.append(std::move(folly::IOBuf::wrapBuffer(data, dataLen)));
+	udpData.append(folly::IOBuf::wrapBuffer(data, dataLen));
 	for (uint16_t processedPackets = 0;
 		!udpData.empty() && processedPackets < kMaxNumCoalescedPackets;
 		processedPackets++) {
-		processPacketData(udpData);
+		encrypted = processPacketData(udpData);
 	}
 	VLOG_IF(0, !udpData.empty()) << "Leaving " << udpData.chainLength()
 		<< " bytes unprocessed after attempting to process "
 		<< kMaxNumCoalescedPackets << " packets.";
+	return encrypted;
 }
 
 class TestCertificateVerifier : public fizz::CertificateVerifier {

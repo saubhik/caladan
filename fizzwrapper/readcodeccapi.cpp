@@ -3,7 +3,8 @@
 extern "C" {
 #include "readcodeccapi.h"
 
-ReadCodecCiphersC *ReadCodecCiphersC_create() {
+ReadCodecCiphersC *ReadCodecCiphersC_create()
+{
 	try {
 		return reinterpret_cast<ReadCodecCiphersC *>(new quic::ReadCodecCiphers());
 	} catch (...) {
@@ -14,20 +15,23 @@ ReadCodecCiphersC *ReadCodecCiphersC_create() {
 void ReadCodecCiphersC_compute_ciphers(
 	ReadCodecCiphersC *cips,
 	uint8_t *buf,
-	size_t bufLen) {
+	size_t bufLen)
+{
 	auto *ciphers = reinterpret_cast<quic::ReadCodecCiphers *>(cips);
 	ciphers->computeCiphers(buf, bufLen);
 }
 
-void ReadCodecCiphersC_decrypt(
+bool ReadCodecCiphersC_decrypt(
 	ReadCodecCiphersC *cips,
 	uint8_t *buf,
-	size_t bufLen) {
+	size_t bufLen)
+{
 	auto *ciphers = reinterpret_cast<quic::ReadCodecCiphers *>(cips);
-	ciphers->decrypt(buf, bufLen);
+	return ciphers->decrypt(buf, bufLen);
 }
 
-void ReadCodecCiphersC_destroy(ReadCodecCiphersC *cips) {
+void ReadCodecCiphersC_destroy(ReadCodecCiphersC *cips)
+{
 	auto *ciphers = reinterpret_cast<quic::ReadCodecCiphers *>(cips);
 	delete ciphers;
 }

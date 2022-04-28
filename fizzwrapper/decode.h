@@ -14,7 +14,7 @@ class ReadCodecCiphers {
 	ReadCodecCiphers();
 	~ReadCodecCiphers() = default;
 	void computeCiphers(void *data, size_t dataLen);
-	void decrypt(void *data, size_t dataLen);
+	bool decrypt(void *data, size_t dataLen);
 
  private:
 	fizz::client::State state_;
@@ -28,7 +28,7 @@ class ReadCodecCiphers {
 		ZeroRttWrite,
 	};
 
-	QuicNodeType nodeType_ = QuicNodeType::Client;
+	// QuicNodeType nodeType_ = QuicNodeType::Client;
 
 	// Cipher used to decrypt handshake packets.
 	std::unique_ptr<Aead> initialReadCipher_;
@@ -46,11 +46,11 @@ class ReadCodecCiphers {
 	// packet number space.
 	AckStates ackStates;
 
-	void processPacketData(BufQueue &);
+	bool processPacketData(BufQueue &);
 	AckState &getAckState(PacketNumberSpace) noexcept;
 	CodecResult parsePacket(BufQueue &, size_t);
 	CodecResult tryParseShortHeaderPacket(Buf, size_t, folly::io::Cursor &);
-	CodecResult parseLongHeaderPacket(BufQueue &);
+	// CodecResult parseLongHeaderPacket(BufQueue &);
 };
 
-}  // namespace quic
+} // namespace quic
