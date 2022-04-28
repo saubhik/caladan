@@ -1,28 +1,56 @@
 #pragma once
 
+#include <fizz/client/ClientProtocol.h>
 #include <quic/codec/Decode.h>
-#include <quic/codec/PacketNumberCipher.h>
+#include <quic/codec/QuicReadCodec.h>
+#include <quic/fizz/handshake/FizzCryptoFactory.h>
 #include <quic/handshake/Aead.h>
 #include <quic/state/AckStates.h>
 
 namespace quic {
-QuicNodeType nodeType_;
 
-// Cipher used to decrypt handshake packets.
-std::unique_ptr<Aead> initialReadCipher_;
+class ReadCodecCiphers {
+ public:
+	ReadCodecCiphers();
+	~ReadCodecCiphers() = default;
+	void computeCiphers(void *data, size_t dataLen);
+	void decrypt(void *data, size_t dataLen);
 
-std::unique_ptr<Aead> oneRttReadCipher_;
-std::unique_ptr<Aead> zeroRttReadCipher_;
-std::unique_ptr<Aead> handshakeReadCipher_;
+ private:
+	fizz::client::State state_;
+	FizzCryptoFactory cryptoFactory_;
 
-std::unique_ptr<PacketNumberCipher> initialHeaderCipher_;
-std::unique_ptr<PacketNumberCipher> oneRttHeaderCipher_;
-std::unique_ptr<PacketNumberCipher> zeroRttHeaderCipher_;
-std::unique_ptr<PacketNumberCipher> handshakeHeaderCipher_;
+	enum class CipherKind {
+		HandshakeWrite,
+		HandshakeRead,
+		OneRttWrite,
+		OneRttRead,
+		ZeroRttWrite,
+	};
 
-// This contains the ack and packet number related states for all three
-// packet number space.
-AckStates ackStates;
+	QuicNodeType nodeType_ = QuicNodeType::Client;
 
-extern void decrypt(void *data, size_t dataLen);
-}
+	// Cipher used to decrypt handshake packets.
+	std::unique_ptr<Aead> initialReadCipher_;
+
+	std::unique_ptr<Aead> oneRttReadCipher_;
+	std::unique_ptr<Aead> zeroRttReadCipher_;
+	std::unique_ptr<Aead> handshakeReadCipher_;
+
+	std::unique_ptr<PacketNumberCipher> initialHeaderCipher_;
+	std::unique_ptr<PacketNumberCipher> oneRttHeaderCipher_;
+	std::unique_ptr<PacketNumberCipher> zeroRttHeaderCipher_;
+	std::unique_ptr<PacketNumberCipher> handshakeHeaderCipher_;
+
+	// This contains the ack and packet number related states for all three
+	// packet number space.
+	AckStates ackStates;
+
+	void processPacketData(BufQueue &);
+	AckState &getAckState(PacketNumberSpace) noexcept;
+	CodecResult parsePacket(BufQueue &, size_t);
+	CodecResult tryParseShortHeaderPacket(Buf, size_t, folly::io::Cursor &);
+	CodecResult parseLongHeaderPacket(BufQueue &);
+};
+
+}  // namespace quic

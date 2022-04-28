@@ -19,6 +19,7 @@
 #include "ref.h"
 
 #include "../fizzwrapper/codeccapi.h"
+#include "../fizzwrapper/readcodeccapi.h"
 
 /* #define STATS 1 */
 
@@ -336,6 +337,7 @@ extern bool rx_send_to_runtime(struct proc *p, uint32_t hash, uint64_t cmd,
 
 /* encryption class */
 extern CiphersC *cips;
+extern ReadCodecCiphersC *rccips;
 
 #if 0
 extern unsigned char *packet_data;

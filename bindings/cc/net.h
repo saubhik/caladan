@@ -3,7 +3,7 @@
 #pragma once
 
 extern "C" {
-#include <cstddef>
+#include <stddef.h>
 #include <runtime/poll.h>
 #include <runtime/tcp.h>
 #include <runtime/udp.h>

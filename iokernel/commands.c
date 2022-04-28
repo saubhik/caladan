@@ -8,8 +8,6 @@
 #include <base/lrpc.h>
 #include <iokernel/queue.h>
 
-#include <stdio.h>
-
 #include "defs.h"
 #include "../fizzwrapper/codeccapi.h"
 
@@ -176,7 +174,15 @@ bool commands_rx(void)
 		/* reference count @p so it doesn't get freed before the completion */
 		proc_get(t->p);
 
-		CiphersC_compute_ciphers(cips, (uint8_t *) hdr->payload, hdr->len);
+		// FIXME(@saubhik): Fix this hack later.
+		if (hdr->len == 33) {
+			/* This is from FizzClientHandshake::buildCiphers(kind, secret) */
+			// ReadCodecCiphersC_compute_ciphers(
+			// 	rccips, (uint8_t *) hdr->payload, hdr->len);
+		} else {
+			CiphersC_compute_ciphers(
+				cips, (uint8_t *) hdr->payload, hdr->len);
+		}
 
 		// Give up on notifying the runtime if this returns false.
 		buf_send_completion(t, hdr);
