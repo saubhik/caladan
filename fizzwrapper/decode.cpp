@@ -320,16 +320,14 @@ void ReadCodecCiphers::computeCiphers(void *data, size_t dataLen)
 	memcpy(&secret[0], (uint8_t *) data + 1, dataLen - 1);
 
 	bool isEarlyTraffic = kind == CipherKind::ZeroRttWrite;
-	fizz::CipherSuite cipher =
-		isEarlyTraffic ? state_.earlyDataParams()->cipher : *state_.cipher();
-	std::unique_ptr<fizz::KeyScheduler> keySchedulerPtr =
-		isEarlyTraffic ? state_.context()->getFactory()->makeKeyScheduler(cipher)
-			: nullptr;
-	fizz::KeyScheduler &keyScheduler =
-		isEarlyTraffic ? *keySchedulerPtr : *state_.keyScheduler();
+	if (isEarlyTraffic)
+		return;
 
+	auto cipher = fizz::CipherSuite::TLS_AES_128_GCM_SHA256;
+	auto keyScheduler = (*state_.context()->getFactory()).makeKeyScheduler(
+		cipher);
 	auto aead = FizzAead::wrap(fizz::Protocol::deriveRecordAeadWithLabel(
-		*state_.context()->getFactory(), keyScheduler, cipher, secret,
+		*state_.context()->getFactory(), *keyScheduler, cipher, secret,
 		kQuicKeyLabel, kQuicIVLabel));
 
 	auto packetNumberCipher = cryptoFactory_.makePacketNumberCipher(secret);
@@ -392,6 +390,21 @@ std::unique_ptr<fizz::CertificateVerifier> createTestCertificateVerifier()
 }
 
 ReadCodecCiphers::ReadCodecCiphers()
-{ state_.context(); }
+{
+	/* @saubhik: From tperf */
+	auto fizzClientContext =
+		FizzClientQuicHandshakeContext::Builder()
+			.setCertificateVerifier(createTestCertificateVerifier())
+			.build();
+	/* @saubhik: From FizzClientHandshake::connectImpl() */
+	auto context = std::make_shared<fizz::client::FizzClientContext>(
+		*fizzClientContext->getContext());
+	context->setFactory(cryptoFactory_.getFizzFactory());
+	context->setSupportedCiphers({fizz::CipherSuite::TLS_AES_128_GCM_SHA256});
+	context->setCompatibilityMode(false);
+	// Since Draft-17, EOED should not be sent
+	context->setOmitEarlyRecordLayer(true);
+	state_.context() = std::move(context);
+}
 
 }  // namespace quic

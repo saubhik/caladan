@@ -35,7 +35,7 @@ static void commands_drain_queue(
 
 		switch (cmd) {
 		case TXCMD_NET_COMPLETE:
-			bufs[pr->n_bufs++] = (struct rte_mbuf *)payload;
+			bufs[pr->n_bufs++] = (struct rte_mbuf *) payload;
 			/* TODO: validate pointer @buf */
 			break;
 
@@ -103,7 +103,7 @@ static int drain_overflow_queue(struct proc *p, int n)
 	int i = 0;
 	while (p->buf_nr_overflows > 0 && i < n) {
 		if (!rx_send_to_runtime(p, p->next_thread_rr++, RX_NET_BUF_COMPLETE,
-				p->buf_overflow_queue[--p->buf_nr_overflows])) {
+			p->buf_overflow_queue[--p->buf_nr_overflows])) {
 			p->buf_nr_overflows++;
 			break;
 		}
@@ -119,7 +119,8 @@ bool buf_drain_completions(void)
 	size_t drained = 0;
 	struct proc *p;
 
-	for (i = 0; i < dp.nr_clients && drained < IOKERNEL_OVERFLOW_BATCH_DRAIN; i++) {
+	for (i = 0;
+		i < dp.nr_clients && drained < IOKERNEL_OVERFLOW_BATCH_DRAIN; i++) {
 		p = dp.clients[(pos + i) % dp.nr_clients];
 		drained += drain_overflow_queue(p, IOKERNEL_OVERFLOW_BATCH_DRAIN - drained);
 	}
@@ -177,8 +178,8 @@ bool commands_rx(void)
 		// FIXME(@saubhik): Fix this hack later.
 		if (hdr->len == 33) {
 			/* This is from FizzClientHandshake::buildCiphers(kind, secret) */
-			// ReadCodecCiphersC_compute_ciphers(
-			// 	rccips, (uint8_t *) hdr->payload, hdr->len);
+			ReadCodecCiphersC_compute_ciphers(
+				rccips, (uint8_t *) hdr->payload, hdr->len);
 		} else {
 			CiphersC_compute_ciphers(
 				cips, (uint8_t *) hdr->payload, hdr->len);
