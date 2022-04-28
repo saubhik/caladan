@@ -13,6 +13,9 @@
 #include <iokernel/queue.h>
 #include <iokernel/shm.h>
 
+#include <net/ip.h>
+#include <net/udp.h>
+
 #include "defs.h"
 #include "sched.h"
 
@@ -86,6 +89,26 @@ bool rx_send_to_runtime(struct proc *p, uint32_t hash, uint64_t cmd,
 static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 {
 	shmptr_t shmptr;
+
+	/* @saubhik: Decrypt UDP packets here */
+	const struct eth_hdr *llhdr;
+	const struct ip_hdr *iphdr;
+	char *data;
+	uint16_t data_len;
+	if (hdr->len >= sizeof(*llhdr)) {
+		llhdr = (struct eth_hdr *) (hdr->payload);
+		if (llhdr->type == ETHTYPE_IP) {
+			iphdr = (struct ip_hdr *) (hdr->payload + sizeof(*llhdr));
+			if (iphdr->proto == SH_IPPROTO_UDP) {
+				data = hdr->payload;
+				data += sizeof(struct eth_hdr);
+				data += sizeof(struct ip_hdr);
+				data_len = ((struct udp_hdr *) data)->len;
+				data += sizeof(struct udp_hdr);
+				ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, data_len);
+			}
+		}
+	}
 
 	shmptr = ptr_to_shmptr(&dp.ingress_mbuf_region, hdr, sizeof(*hdr));
 	return rx_send_to_runtime(p, hdr->rss_hash, RX_NET_RECV, shmptr);

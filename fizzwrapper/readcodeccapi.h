@@ -8,4 +8,6 @@ ReadCodecCiphersC* ReadCodecCiphersC_create();
 
 void ReadCodecCiphersC_compute_ciphers(ReadCodecCiphersC*, uint8_t*, size_t);
 
+void ReadCodecCiphersC_decrypt(ReadCodecCiphersC*, uint8_t*, size_t);
+
 void ReadCodecCiphersC_destroy(ReadCodecCiphersC*);
