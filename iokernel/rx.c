@@ -97,14 +97,17 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 	uint16_t data_len;
 	if (hdr->len >= sizeof(*llhdr)) {
 		llhdr = (struct eth_hdr *) (hdr->payload);
-		if (llhdr->type == ETHTYPE_IP) {
+		if (ntoh16(llhdr->type) == ETHTYPE_IP) {
 			iphdr = (struct ip_hdr *) (hdr->payload + sizeof(*llhdr));
 			if (iphdr->proto == SH_IPPROTO_UDP) {
 				data = hdr->payload;
 				data += sizeof(struct eth_hdr);
 				data += sizeof(struct ip_hdr);
-				data_len = ((struct udp_hdr *) data)->len;
 				data += sizeof(struct udp_hdr);
+				data_len = hdr->len;
+				data_len -= sizeof(struct eth_hdr);
+				data_len -= sizeof(struct ip_hdr);
+				data_len -= sizeof(struct udp_hdr);
 				ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, data_len);
 			}
 		}
