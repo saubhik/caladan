@@ -84,7 +84,8 @@ static void udp_conn_recv(struct trans_entry *e, struct mbuf *m)
 	spin_lock_np(&c->inq_lock);
 	/* drop packet if the ingress queue is full */
 	if (c->inq_len >= c->inq_cap || c->inq_err || c->shutdown) {
-		log_info("c->inq_len=%d, c->inq_cap=%d, c->inq_err=%d, c->shutdown=%d", c->inq_len, c->inq_cap, c->inq_err, c->shutdown);
+		log_info("c->inq_len=%d, c->inq_cap=%d, c->inq_err=%d, c->shutdown=%d",
+			c->inq_len, c->inq_cap, c->inq_err, c->shutdown);
 		spin_unlock_np(&c->inq_lock);
 		mbuf_drop(m);
 		return;
@@ -325,8 +326,8 @@ int udp_set_buffers(udpconn_t *c, int read_mbufs, int write_mbufs)
  * Returns the number of bytes in the datagram, or @len if the datagram
  * is >= @len in size. If the socket has been shutdown, returns 0.
  */
-ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
-                      struct netaddr *raddr)
+ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len, bool *is_decrypted,
+	struct netaddr *raddr)
 {
 	ssize_t ret;
 	struct mbuf *m;
@@ -373,6 +374,12 @@ ssize_t udp_read_from(udpconn_t *c, void *buf, size_t len,
 			       c->e.raddr.port == raddr->port);
 		}
 	}
+
+	/* Get the decryption tag */
+	if (is_decrypted) {
+		*is_decrypted = m->csum;
+	}
+
 	mbuf_free(m);
 	return ret;
 }
@@ -543,9 +550,9 @@ ssize_t send_to_iokernel(const void *buf, ssize_t len)
  * Returns the number of bytes in the datagram, or @len if the datagram
  * is >= @len in size. If the socket has been shutdown, returns 0.
  */
-ssize_t udp_read(udpconn_t *c, void *buf, size_t len)
+ssize_t udp_read(udpconn_t *c, void *buf, size_t len, bool *is_decrypted)
 {
-	return udp_read_from(c, buf, len, NULL);
+	return udp_read_from(c, buf, len, is_decrypted, NULL);
 }
 
 /**

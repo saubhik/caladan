@@ -95,44 +95,30 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 	struct ip_hdr *iphdr;
 	struct udp_hdr *udphdr;
 	char *data;
-	uint16_t data_len;
+	uint16_t body_len;
+
+	data = hdr->payload;
 	if (hdr->len >= sizeof(*llhdr)) {
-		llhdr = (struct eth_hdr *) (hdr->payload);
+		llhdr = (struct eth_hdr *) data;
+		data += sizeof(struct eth_hdr);
 		if (ntoh16(llhdr->type) == ETHTYPE_IP) {
-			iphdr = (struct ip_hdr *) (hdr->payload + sizeof(*llhdr));
+			iphdr = (struct ip_hdr *) data;
+			data += sizeof(struct ip_hdr);
 			if (iphdr->proto == SH_IPPROTO_UDP) {
-				data = hdr->payload;
-				data += sizeof(struct eth_hdr);
-				data += sizeof(struct ip_hdr);
 				udphdr = (struct udp_hdr *) data;
 				data += sizeof(struct udp_hdr);
-				data_len = hdr->len;
-				data_len -= sizeof(struct eth_hdr);
-				data_len -= sizeof(struct ip_hdr);
-				data_len -= sizeof(struct udp_hdr);
-#if 0
-				printf("hdr->len=%d\n", hdr->len);
-				printf("Before decryption:\n");
-				for (int i = 0; i < hdr->len; ++i) {
-					printf("%02x ", (unsigned char) hdr->payload[i]);
-					if (i % 32 == 31) printf("\n");
-				}
-				printf("\n");
-#endif
-				if (ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, data_len)) {
+
+				body_len = hdr->len;
+				body_len -= sizeof(struct eth_hdr);
+				body_len -= sizeof(struct ip_hdr);
+				body_len -= sizeof(struct udp_hdr);
+
+				if (ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, body_len)) {
 					/* Fix the lengths in header fields, if decrypted */
 					hdr->len -= CIPHER_OVERHEAD;
 					iphdr->len = hton16(ntoh16(iphdr->len) - CIPHER_OVERHEAD);
 					udphdr->len = hton16(ntoh16(udphdr->len) - CIPHER_OVERHEAD);
 					hdr->csum = 1; /* hack for a decrypted tag */
-#if 0
-					printf("After decryption:\n");
-					for (int i = 0; i < hdr->len; ++i) {
-						printf("%02x ", (unsigned char) hdr->payload[i]);
-						if (i % 32 == 31) printf("\n");
-					}
-					printf("\n");
-#endif
 				}
 			}
 		}

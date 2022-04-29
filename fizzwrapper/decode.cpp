@@ -65,8 +65,8 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(Buf &data,
 		return CodecResult(Nothing());
 	}
 
-	// @saubhik: First byte set to 1 denotes encrypted.
-	memcpy((void *) (dataPtr + 1), decryptAttempt.value()->data(),
+	dataPtr += aadLen;
+	memcpy((void *) dataPtr, decryptAttempt.value()->data(),
 		decryptAttempt.value()->length());
 
 	// @saubhik: We do not need to parse frames.
