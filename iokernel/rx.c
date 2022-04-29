@@ -43,7 +43,7 @@ static struct rx_net_hdr *rx_prepend_rx_preamble(struct rte_mbuf *buf)
 		net_hdr->csum_type = CHECKSUM_TYPE_UNNECESSARY;
 	else
 		net_hdr->csum_type = CHECKSUM_TYPE_NEEDED;
-	net_hdr->csum = 0; /* unused for now */
+	net_hdr->csum = 0; /* was unused, now a decryption tag */
 
 	return net_hdr;
 }
@@ -110,11 +110,29 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 				data_len -= sizeof(struct eth_hdr);
 				data_len -= sizeof(struct ip_hdr);
 				data_len -= sizeof(struct udp_hdr);
+#if 0
+				printf("hdr->len=%d\n", hdr->len);
+				printf("Before decryption:\n");
+				for (int i = 0; i < hdr->len; ++i) {
+					printf("%02x ", (unsigned char) hdr->payload[i]);
+					if (i % 32 == 31) printf("\n");
+				}
+				printf("\n");
+#endif
 				if (ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, data_len)) {
 					/* Fix the lengths in header fields, if decrypted */
 					hdr->len -= CIPHER_OVERHEAD;
-					iphdr->len = hton16(iphdr->len - CIPHER_OVERHEAD);
-					udphdr->len = hton16(udphdr->len - CIPHER_OVERHEAD);
+					iphdr->len = hton16(ntoh16(iphdr->len) - CIPHER_OVERHEAD);
+					udphdr->len = hton16(ntoh16(udphdr->len) - CIPHER_OVERHEAD);
+					hdr->csum = 1; /* hack for a decrypted tag */
+#if 0
+					printf("After decryption:\n");
+					for (int i = 0; i < hdr->len; ++i) {
+						printf("%02x ", (unsigned char) hdr->payload[i]);
+						if (i % 32 == 31) printf("\n");
+					}
+					printf("\n");
+#endif
 				}
 			}
 		}

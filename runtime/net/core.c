@@ -83,8 +83,67 @@ static void net_rx_send_completion(unsigned long completion_data)
 
 static struct mbuf *net_rx_alloc_mbuf(struct rx_net_hdr *hdr)
 {
-	struct mbuf *m;
 	void *buf;
+	struct mbuf *m;
+	struct eth_hdr *llhdr;
+	struct ip_hdr *iphdr;
+	struct udp_hdr *udphdr;
+	char *data;
+	uint16_t hdrs_len;
+	uint16_t body_len;
+	uint16_t mbuf_len;
+
+	data = hdr->payload;
+	if (hdr->len >= sizeof(*llhdr)) {
+		llhdr = (struct eth_hdr *) data;
+		if (ntoh16(llhdr->type) == ETHTYPE_IP) {
+			data += sizeof(struct eth_hdr);
+			iphdr = (struct ip_hdr *) data;
+			if (iphdr->proto == SH_IPPROTO_UDP) {
+				data += sizeof(struct ip_hdr);
+				data += sizeof(struct udp_hdr);
+
+				hdrs_len = data - hdr->payload;
+				body_len = hdr->len - hdrs_len;
+				mbuf_len = hdr->len + 1;
+
+				/* allocate the buffer to store the payload */
+				/* 1 byte for decryption tag */
+				m = smalloc(mbuf_len + MBUF_HEAD_LEN);
+				if (unlikely(!m))
+					goto out;
+
+				buf = (unsigned char *) m + MBUF_HEAD_LEN;
+
+				memcpy(buf, hdr->payload, hdrs_len);
+				buf += hdrs_len;
+				memset(buf, (int) hdr->csum, 1);
+				buf += 1;
+				memcpy(buf, data, body_len);
+
+				buf -= 1;
+
+				buf -= sizeof(struct udp_hdr);
+				udphdr = (struct udp_hdr *) buf;
+				udphdr->len = hton16(ntoh16(udphdr->len) + 1);
+
+				buf -= sizeof(struct ip_hdr);
+				iphdr = (struct ip_hdr *) buf;
+				iphdr->len = hton16(ntoh16(iphdr->len) + 1);
+
+				buf -= sizeof(struct eth_hdr);
+
+				mbuf_init(m, buf, mbuf_len, 0);
+				m->len = mbuf_len;
+				m->csum_type = hdr->csum_type;
+				m->csum = 0;
+				m->rss_hash = hdr->rss_hash;
+				m->release = (void (*)(struct mbuf *)) sfree;
+
+				goto out;
+			}
+		}
+	}
 
 	/* allocate the buffer to store the payload */
 	m = smalloc(hdr->len + MBUF_HEAD_LEN);
@@ -93,7 +152,6 @@ static struct mbuf *net_rx_alloc_mbuf(struct rx_net_hdr *hdr)
 
 	buf = (unsigned char *)m + MBUF_HEAD_LEN;
 
-	/* copy the payload and release the buffer back to the iokernel */
 	memcpy(buf, hdr->payload, hdr->len);
 
 	mbuf_init(m, buf, hdr->len, 0);
@@ -249,7 +307,6 @@ static void iokernel_softirq_poll(struct kthread *k)
 					    MBUF_DEFAULT_LEN);
 			m = net_rx_alloc_mbuf(hdr);
 			if (unlikely(!m)) {
-				log_info("iokernel_softirq_poll: dropped!");
 				STAT(DROPS)++;
 				continue;
 			}

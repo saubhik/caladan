@@ -7,175 +7,11 @@
 
 namespace quic {
 
-#if 0
-CodecResult ReadCodecCiphers::parseLongHeaderPacket(BufQueue &queue)
+CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(Buf &data,
+	folly::io::Cursor &cursor)
 {
-	folly::io::Cursor cursor(queue.front());
-	auto initialByte = cursor.readBE<uint8_t>();
-	auto longHeaderInvariant = parseLongHeaderInvariant(initialByte, cursor);
-	if (!longHeaderInvariant) {
-		VLOG(0) << "Dropping packet, failed to parse invariant";
-		// We've failed to parse the long header, so we have no idea where this
-		// packet ends. Clear the queue since no other data in this packet is
-		// parse-able.
-		queue.move();
-		return CodecResult(Nothing());
-	}
-	if (longHeaderInvariant->invariant.version ==
-		QuicVersion::VERSION_NEGOTIATION) {
-		// We shouldn't handle VN packets while parsing the long header.
-		// We assume here that they have been handled before calling this
-		// function.
-		// Since VN is not allowed to be coalesced with another packet
-		// type, we clear out the buffer to avoid anyone else parsing it.
-		queue.move();
-		return CodecResult(Nothing());
-	}
-	auto type = parseLongHeaderType(initialByte);
-
-	auto parsedLongHeader = parseLongHeaderVariants(
-		type, std::move(*longHeaderInvariant), cursor, nodeType_);
-	if (!parsedLongHeader) {
-		VLOG(0) << "Dropping due to failed to parse header";
-		// We've failed to parse the long header, so we have no idea where this
-		// packet ends. Clear the queue since no other data in this packet is
-		// parse-able.
-		queue.move();
-		return CodecResult(Nothing());
-	}
-	// As soon as we have parsed out the long header we can split off any
-	// coalesced packets. We do this early since the spec mandates that decryption
-	// failure must not stop the processing of subsequent coalesced packets.
-	auto longHeader = std::move(parsedLongHeader->header);
-
-	if (type == LongHeader::Types::Retry) {
-		queue.move();
-		return CodecResult(Nothing());
-	}
-
-	uint64_t packetNumberOffset = cursor.getCurrentPosition();
-	size_t currentPacketLen =
-		packetNumberOffset + parsedLongHeader->packetLength.packetLength;
-	if (queue.chainLength() < currentPacketLen) {
-		// Packet appears truncated, there's no parse-able data left.
-		queue.move();
-		return CodecResult(Nothing());
-	}
-	auto currentPacketData = queue.splitAtMost(currentPacketLen);
-	cursor.reset(currentPacketData.get());
-	cursor.skip(packetNumberOffset);
-	// Sample starts after the max packet number size. This ensures that we
-	// have enough bytes to skip before we can start reading the sample.
-	if (!cursor.canAdvance(kMaxPacketNumEncodingSize)) {
-		VLOG(0) << "Dropping packet, not enough for packet number";
-		// Packet appears truncated, there's no parse-able data left.
-		queue.move();
-		return CodecResult(Nothing());
-	}
-	cursor.skip(kMaxPacketNumEncodingSize);
-	Sample sample;
-	if (!cursor.canAdvance(sample.size())) {
-		VLOG(0) << "Dropping packet, sample too small";
-		// Packet appears truncated, there's no parse-able data left.
-		queue.move();
-		return CodecResult(Nothing());
-	}
-	cursor.pull(sample.data(), sample.size());
-
-	const PacketNumberCipher *headerCipher{nullptr};
-	const Aead *cipher{nullptr};
-	auto protectionType = longHeader.getProtectionType();
-	switch (protectionType) {
-	case ProtectionType::Initial:
-		if (!initialHeaderCipher_) {
-			VLOG(0) << nodeToString(nodeType_)
-				<< " dropping initial packet after initial keys dropped";
-			return CodecResult(Nothing());
-		}
-		headerCipher = initialHeaderCipher_.get();
-		cipher = initialReadCipher_.get();
-		break;
-	case ProtectionType::Handshake:
-		headerCipher = handshakeHeaderCipher_.get();
-		cipher = handshakeReadCipher_.get();
-		break;
-	case ProtectionType::ZeroRtt:
-		headerCipher = zeroRttHeaderCipher_.get();
-		cipher = zeroRttReadCipher_.get();
-		break;
-	case ProtectionType::KeyPhaseZero:
-	case ProtectionType::KeyPhaseOne:
-		CHECK(false) << "one rtt protection type in long header";
-	}
-	if (!headerCipher || !cipher) {
-		return CodecResult(
-			CipherUnavailable(std::move(currentPacketData), 0, protectionType));
-	}
-
-	PacketNum expectedNextPacketNum = 0;
-	folly::Optional<PacketNum> largestReceivedPacketNum;
-	switch (longHeaderTypeToProtectionType(type)) {
-	case ProtectionType::Initial:
-		largestReceivedPacketNum =
-			ackStates.initialAckState.largestReceivedPacketNum;
-		break;
-	case ProtectionType::Handshake:
-		largestReceivedPacketNum =
-			ackStates.handshakeAckState.largestReceivedPacketNum;
-		break;
-	case ProtectionType::ZeroRtt:
-		largestReceivedPacketNum =
-			ackStates.appDataAckState.largestReceivedPacketNum;
-		break;
-	default:
-		folly::assume_unreachable();
-	}
-	if (largestReceivedPacketNum) {
-		expectedNextPacketNum = 1 + *largestReceivedPacketNum;
-	}
-	folly::MutableByteRange initialByteRange(currentPacketData->writableData(),
-		1);
-	folly::MutableByteRange packetNumberByteRange(
-		currentPacketData->writableData() + packetNumberOffset,
-		kMaxPacketNumEncodingSize);
-	headerCipher->decryptLongHeader(folly::range(sample), initialByteRange,
-		packetNumberByteRange);
-	std::pair<PacketNum, size_t> packetNum = parsePacketNumber(
-		initialByteRange.data()[0], packetNumberByteRange, expectedNextPacketNum);
-
-	longHeader.setPacketNumber(packetNum.first);
-	BufQueue decryptQueue;
-	decryptQueue.append(std::move(currentPacketData));
-	size_t aadLen = packetNumberOffset + packetNum.second;
-	auto headerData = decryptQueue.splitAtMost(aadLen);
-	// parsing verifies that packetLength >= packet number length.
-	auto encryptedData = decryptQueue.splitAtMost(
-		parsedLongHeader->packetLength.packetLength - packetNum.second);
-	if (!encryptedData) {
-		// There should normally be some integrity tag at least in the data,
-		// however allowing the aead to process the data even if the tag is not
-		// present helps with writing tests.
-		encryptedData = folly::IOBuf::create(0);
-	}
-
-	auto decryptAttempt = cipher->tryDecrypt(std::move(encryptedData),
-		headerData.get(), packetNum.first);
-	if (!decryptAttempt) {
-		VLOG(0) << "Unable to decrypt packet=" << packetNum.first
-			<< " packetNumLen=" << parsePacketNumberLength(initialByte)
-			<< " protectionType=" << toString(protectionType);
-		return CodecResult(Nothing());
-	}
-
-	// @saubhik: No need to parse frames.
-	return RegularQuicPacket(std::move(longHeader));
-}
-#endif
-
-CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
-	Buf data, size_t dstConnIdSize, folly::io::Cursor &cursor)
-{
-	size_t packetNumberOffset = 1 + dstConnIdSize;
+	auto dataPtr = data->data();
+	size_t packetNumberOffset = 1;
 	PacketNum expectedNextPacketNum =
 		ackStates.appDataAckState.largestReceivedPacketNum
 			? (1 + *ackStates.appDataAckState.largestReceivedPacketNum)
@@ -199,7 +35,7 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 	std::pair<PacketNum, size_t> packetNum = parsePacketNumber(
 		initialByteRange.data()[0], packetNumberByteRange, expectedNextPacketNum);
 	auto shortHeader =
-		parseShortHeader(initialByteRange.data()[0], cursor, dstConnIdSize);
+		parseShortHeader(initialByteRange.data()[0], cursor, 0);
 	if (!shortHeader) {
 		VLOG(0) << "Dropping packet, cannot parse";
 		return CodecResult(Nothing());
@@ -220,8 +56,6 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 		folly::IOBuf::wrapBufferAsValue(data->data(), aadLen);
 	data->trimStart(aadLen);
 
-	VLOG(1) << "Before encryption \n"
-		<< folly::hexlify(data->clone()->moveToFbString());
 	auto decryptAttempt = oneRttReadCipher_->tryDecrypt(
 		std::move(data), &headerData, packetNum.first);
 	if (!decryptAttempt) {
@@ -230,25 +64,22 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(
 			<< " protectionType=" << (int) protectionType;
 		return CodecResult(Nothing());
 	}
-	VLOG(1) << "After encryption \n"
-		<< folly::hexlify(decryptAttempt.value()->clone()->moveToFbString());
+
+	// @saubhik: First byte set to 1 denotes encrypted.
+	memcpy((void *) (dataPtr + 1), decryptAttempt.value()->data(),
+		decryptAttempt.value()->length());
 
 	// @saubhik: We do not need to parse frames.
 	return RegularQuicPacket(std::move(*shortHeader));
 }
 
-CodecResult ReadCodecCiphers::parsePacket(BufQueue &queue,
-	size_t dstConnIdSize)
+CodecResult ReadCodecCiphers::parsePacket(Buf &buf)
 {
-	if (queue.empty()) {
-		return CodecResult(Nothing());
-	}
-	DCHECK(!queue.front()->isChained());
-	folly::io::Cursor cursor(queue.front());
+	folly::io::Cursor cursor(buf.get());
 	if (!cursor.canAdvance(sizeof(uint8_t))) {
 		return CodecResult(Nothing());
 	}
-	uint8_t initialByte = cursor.readBE<uint8_t>();
+	auto initialByte = cursor.readBE<uint8_t>();
 	auto headerForm = getHeaderForm(initialByte);
 	if (headerForm == HeaderForm::Long) {
 		return CodecResult(Nothing());
@@ -259,14 +90,12 @@ CodecResult ReadCodecCiphers::parsePacket(BufQueue &queue,
 	if (!oneRttReadCipher_ || !oneRttHeaderCipher_) {
 		VLOG(0) << "Missing oneRtt ciphers";
 		VLOG(1) << "cannot read data="
-			<< folly::hexlify(queue.front()->clone()->moveToFbString());
+			<< folly::hexlify(buf->clone()->moveToFbString());
 		return CodecResult(
-			CipherUnavailable(queue.move(), 0, ProtectionType::KeyPhaseZero));
+			CipherUnavailable(std::move(buf), 0, ProtectionType::KeyPhaseZero));
 	}
 
-	auto data = queue.move();
-	auto maybeShortHeaderPacket =
-		tryParseShortHeaderPacket(std::move(data), dstConnIdSize, cursor);
+	auto maybeShortHeaderPacket = tryParseShortHeaderPacket(buf, cursor);
 	return maybeShortHeaderPacket;
 }
 
@@ -299,22 +128,15 @@ bool updateLargestReceivedPacketNum(AckState &ackState, PacketNum packetNum)
 	return expectedNextPacket != packetNum;
 }
 
-bool ReadCodecCiphers::processPacketData(BufQueue &packetQueue)
+bool ReadCodecCiphers::processPacketData(Buf &buf)
 {
-	auto packetSize = packetQueue.chainLength();
-	if (packetSize == 0) {
-		return false;
-	}
-
-	auto parsedPacket = parsePacket(packetQueue, 0);
+	auto parsedPacket = parsePacket(buf);
 	RegularQuicPacket *regularOptional = parsedPacket.regularPacket();
 	if (!regularOptional) {
 		return false;
 	}
-
 	auto packetNum = regularOptional->header.getPacketSequenceNum();
 	auto pnSpace = regularOptional->header.getPacketNumberSpace();
-
 	auto &ackState = getAckState(pnSpace);
 	updateLargestReceivedPacketNum(ackState, packetNum);
 	return true;
@@ -362,18 +184,8 @@ void ReadCodecCiphers::computeCiphers(void *data, size_t dataLen)
 
 bool ReadCodecCiphers::decrypt(void *data, size_t dataLen)
 {
-	bool encrypted = false;
-	BufQueue udpData;
-	udpData.append(folly::IOBuf::wrapBuffer(data, dataLen));
-	for (uint16_t processedPackets = 0;
-		!udpData.empty() && processedPackets < kMaxNumCoalescedPackets;
-		processedPackets++) {
-		encrypted = processPacketData(udpData);
-	}
-	VLOG_IF(0, !udpData.empty()) << "Leaving " << udpData.chainLength()
-		<< " bytes unprocessed after attempting to process "
-		<< kMaxNumCoalescedPackets << " packets.";
-	return encrypted;
+	auto encrypted = folly::IOBuf::wrapBuffer(data, dataLen);
+	return processPacketData(encrypted);
 }
 
 class TestCertificateVerifier : public fizz::CertificateVerifier {

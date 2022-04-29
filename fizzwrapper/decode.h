@@ -28,8 +28,6 @@ class ReadCodecCiphers {
 		ZeroRttWrite,
 	};
 
-	// QuicNodeType nodeType_ = QuicNodeType::Client;
-
 	// Cipher used to decrypt handshake packets.
 	std::unique_ptr<Aead> initialReadCipher_;
 
@@ -46,11 +44,10 @@ class ReadCodecCiphers {
 	// packet number space.
 	AckStates ackStates;
 
-	bool processPacketData(BufQueue &);
+	bool processPacketData(Buf &);
 	AckState &getAckState(PacketNumberSpace) noexcept;
-	CodecResult parsePacket(BufQueue &, size_t);
-	CodecResult tryParseShortHeaderPacket(Buf, size_t, folly::io::Cursor &);
-	// CodecResult parseLongHeaderPacket(BufQueue &);
+	CodecResult parsePacket(Buf &);
+	CodecResult tryParseShortHeaderPacket(Buf &, folly::io::Cursor &);
 };
 
 } // namespace quic

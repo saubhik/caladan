@@ -7,6 +7,7 @@
 #include <net/mbuf.h>
 #include <net/ethernet.h>
 #include <net/ip.h>
+#include <net/udp.h>
 #include <runtime/net.h>
 #include <runtime/rculist.h>
 
