@@ -176,7 +176,7 @@ bool commands_rx(void)
 		proc_get(t->p);
 
 		// FIXME(@saubhik): Fix this hack later.
-		if (hdr->len == 33) {
+		if (hdr->len == 32) {
 			/* This is from FizzClientHandshake::buildCiphers(kind, secret) */
 			ReadCodecCiphersC_compute_ciphers(
 				rccips, (uint8_t *) hdr->payload, hdr->len);

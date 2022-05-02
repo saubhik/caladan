@@ -7,7 +7,7 @@
 
 namespace quic {
 
-CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(Buf &data,
+CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(Buf data,
 	folly::io::Cursor &cursor)
 {
 	auto dataPtr = data->data();
@@ -56,24 +56,17 @@ CodecResult ReadCodecCiphers::tryParseShortHeaderPacket(Buf &data,
 		folly::IOBuf::wrapBufferAsValue(data->data(), aadLen);
 	data->trimStart(aadLen);
 
-	auto decryptAttempt = oneRttReadCipher_->tryDecrypt(
+	auto decryptAttempt = oneRttReadCipher_->decrypt(
 		std::move(data), &headerData, packetNum.first);
-	if (!decryptAttempt) {
-		auto protectionType = shortHeader->getProtectionType();
-		VLOG(0) << "Unable to decrypt packet=" << packetNum.first
-			<< " protectionType=" << (int) protectionType;
-		return CodecResult(Nothing());
-	}
 
-	dataPtr += aadLen;
-	memcpy((void *) dataPtr, decryptAttempt.value()->data(),
-		decryptAttempt.value()->length());
+	memcpy((void *) (dataPtr + aadLen), decryptAttempt->data(),
+		decryptAttempt->length());
 
 	// @saubhik: We do not need to parse frames.
 	return RegularQuicPacket(std::move(*shortHeader));
 }
 
-CodecResult ReadCodecCiphers::parsePacket(Buf &buf)
+CodecResult ReadCodecCiphers::parsePacket(Buf buf)
 {
 	folly::io::Cursor cursor(buf.get());
 	if (!cursor.canAdvance(sizeof(uint8_t))) {
@@ -88,14 +81,16 @@ CodecResult ReadCodecCiphers::parsePacket(Buf &buf)
 	// Missing 1-rtt Cipher is the only case we wouldn't consider reset
 	// TODO: support key phase one.
 	if (!oneRttReadCipher_ || !oneRttHeaderCipher_) {
-		VLOG(0) << "Missing oneRtt ciphers";
+		VLOG(1) << "Missing oneRtt ciphers";
 		VLOG(1) << "cannot read data="
 			<< folly::hexlify(buf->clone()->moveToFbString());
 		return CodecResult(
-			CipherUnavailable(std::move(buf), 0, ProtectionType::KeyPhaseZero));
+			CipherUnavailable(
+				std::move(buf), 0, ProtectionType::KeyPhaseZero));
 	}
 
-	auto maybeShortHeaderPacket = tryParseShortHeaderPacket(buf, cursor);
+	auto maybeShortHeaderPacket = tryParseShortHeaderPacket(std::move(buf),
+		cursor);
 	return maybeShortHeaderPacket;
 }
 
@@ -128,9 +123,9 @@ bool updateLargestReceivedPacketNum(AckState &ackState, PacketNum packetNum)
 	return expectedNextPacket != packetNum;
 }
 
-bool ReadCodecCiphers::processPacketData(Buf &buf)
+bool ReadCodecCiphers::processPacketData(Buf buf)
 {
-	auto parsedPacket = parsePacket(buf);
+	auto parsedPacket = parsePacket(std::move(buf));
 	RegularQuicPacket *regularOptional = parsedPacket.regularPacket();
 	if (!regularOptional) {
 		return false;
@@ -142,15 +137,16 @@ bool ReadCodecCiphers::processPacketData(Buf &buf)
 	return true;
 }
 
+bool ReadCodecCiphers::decrypt(void *data, size_t dataLen)
+{
+	auto encrypted = folly::IOBuf::wrapBuffer(data, dataLen);
+	return processPacketData(std::move(encrypted));
+}
+
 void ReadCodecCiphers::computeCiphers(void *data, size_t dataLen)
 {
-	auto kind = (CipherKind) (*((uint8_t *) data));
-	std::vector<uint8_t> secret(dataLen - 1);
-	memcpy(&secret[0], (uint8_t *) data + 1, dataLen - 1);
-
-	bool isEarlyTraffic = kind == CipherKind::ZeroRttWrite;
-	if (isEarlyTraffic)
-		return;
+	std::vector <uint8_t> secret(dataLen);
+	memcpy(&secret[0], (uint8_t *) data, dataLen);
 
 	auto cipher = fizz::CipherSuite::TLS_AES_128_GCM_SHA256;
 	auto keyScheduler = (*state_.context()->getFactory()).makeKeyScheduler(
@@ -161,51 +157,28 @@ void ReadCodecCiphers::computeCiphers(void *data, size_t dataLen)
 
 	auto packetNumberCipher = cryptoFactory_.makePacketNumberCipher(secret);
 
-	switch (kind) {
-	case CipherKind::HandshakeWrite:
-		break;
-	case CipherKind::HandshakeRead:
-		handshakeReadCipher_ = std::move(aead);
-		handshakeHeaderCipher_ = std::move(packetNumberCipher);
-		break;
-	case CipherKind::OneRttWrite:
-		break;
-	case CipherKind::OneRttRead:
-		oneRttReadCipher_ = std::move(aead);
-		oneRttHeaderCipher_ = std::move(packetNumberCipher);
-		break;
-	case CipherKind::ZeroRttWrite:
-		break;
-	default:
-		// Report error?
-		break;
-	}
-}
-
-bool ReadCodecCiphers::decrypt(void *data, size_t dataLen)
-{
-	auto encrypted = folly::IOBuf::wrapBuffer(data, dataLen);
-	return processPacketData(encrypted);
+	oneRttReadCipher_ = std::move(aead);
+	oneRttHeaderCipher_ = std::move(packetNumberCipher);
 }
 
 class TestCertificateVerifier : public fizz::CertificateVerifier {
  public:
 	~TestCertificateVerifier() override = default;
 
-	void verify(const std::vector<std::shared_ptr<const fizz::PeerCert>> &)
+	void verify(const std::vector <std::shared_ptr<const fizz::PeerCert>> &)
 	const override
 	{
 		return;
 	}
 
-	std::vector<fizz::Extension> getCertificateRequestExtensions()
+	std::vector <fizz::Extension> getCertificateRequestExtensions()
 	const override
 	{
 		return std::vector<fizz::Extension>();
 	}
 };
 
-std::unique_ptr<fizz::CertificateVerifier> createTestCertificateVerifier()
+std::unique_ptr <fizz::CertificateVerifier> createTestCertificateVerifier()
 {
 	return std::make_unique<TestCertificateVerifier>();
 }
