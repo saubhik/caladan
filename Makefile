@@ -73,6 +73,7 @@ endif
 # fizzwrapper libs
 FIZZWRAPPER_LIBS  = -lfizz
 FIZZWRAPPER_LIBS += -lfolly
+FIZZWRAPPER_LIBS += -lssl
 FIZZWRAPPER_LIBS += -lsodium
 FIZZWRAPPER_LIBS += -lglog
 FIZZWRAPPER_LIBS += -lgflags
