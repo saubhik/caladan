@@ -121,7 +121,9 @@ FIZZWRAPPER_LIBS += -ldl
 all:
 	$(MAKE) libs
 
-libs: libbase.a libnet.a libruntime.a libfizzwrapper.a iokerneld $(test_targets)
+libs: libbase.a libnet.a libruntime.a
+
+tests: $(test_targets)
 
 libbase.a: $(base_obj)
 	$(AR) rcs $@ $^
