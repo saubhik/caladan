@@ -71,8 +71,9 @@ endif
 endif
 
 # fizzwrapper libs
-FIZZWRAPPER_LIBS = -lfizz
+FIZZWRAPPER_LIBS  = -lfizz
 FIZZWRAPPER_LIBS += -lfolly
+FIZZWRAPPER_LIBS += -lssl
 FIZZWRAPPER_LIBS += -lsodium
 FIZZWRAPPER_LIBS += -lglog
 FIZZWRAPPER_LIBS += -lgflags
@@ -82,12 +83,48 @@ FIZZWRAPPER_LIBS += -levent
 FIZZWRAPPER_LIBS += -lboost_context
 FIZZWRAPPER_LIBS += -lcrypto
 FIZZWRAPPER_LIBS += -ldouble-conversion
+FIZZWRAPPER_LIBS += -lmvfst_bufutil
+FIZZWRAPPER_LIBS += -lmvfst_cc_algo
+FIZZWRAPPER_LIBS += -lmvfst_client
+FIZZWRAPPER_LIBS += -lmvfst_codec
+FIZZWRAPPER_LIBS += -lmvfst_codec_decode
+FIZZWRAPPER_LIBS += -lmvfst_codec_packet_number_cipher
+FIZZWRAPPER_LIBS += -lmvfst_codec_pktbuilder
+FIZZWRAPPER_LIBS += -lmvfst_codec_pktrebuilder
+FIZZWRAPPER_LIBS += -lmvfst_codec_types
+FIZZWRAPPER_LIBS += -lmvfst_constants
+FIZZWRAPPER_LIBS += -lmvfst_d6d_state_functions
+FIZZWRAPPER_LIBS += -lmvfst_d6d_types
+FIZZWRAPPER_LIBS += -lmvfst_exception
+FIZZWRAPPER_LIBS += -lmvfst_fizz_client
+FIZZWRAPPER_LIBS += -lmvfst_fizz_handshake
+FIZZWRAPPER_LIBS += -lmvfst_flowcontrol
+FIZZWRAPPER_LIBS += -lmvfst_handshake
+FIZZWRAPPER_LIBS += -lmvfst_happyeyeballs
+FIZZWRAPPER_LIBS += -lmvfst_looper
+FIZZWRAPPER_LIBS += -lmvfst_loss
+FIZZWRAPPER_LIBS += -lmvfst_qlogger
+FIZZWRAPPER_LIBS += -lmvfst_server
+FIZZWRAPPER_LIBS += -lmvfst_socketutil
+FIZZWRAPPER_LIBS += -lmvfst_state_ack_handler
+FIZZWRAPPER_LIBS += -lmvfst_state_functions
+FIZZWRAPPER_LIBS += -lmvfst_state_machine
+FIZZWRAPPER_LIBS += -lmvfst_state_pacing_functions
+FIZZWRAPPER_LIBS += -lmvfst_state_simple_frame_functions
+FIZZWRAPPER_LIBS += -lmvfst_state_stream
+FIZZWRAPPER_LIBS += -lmvfst_state_stream_functions
+FIZZWRAPPER_LIBS += -lmvfst_transport
+FIZZWRAPPER_LIBS += -lmvfst_transport_knobs
+FIZZWRAPPER_LIBS += -lstdc++
+FIZZWRAPPER_LIBS += -ldl
 
 # must be first
 all:
 	$(MAKE) libs
 
-libs: libbase.a libnet.a libruntime.a libfizzwrapper.a iokerneld $(test_targets)
+libs: libbase.a libnet.a libruntime.a
+
+tests: $(test_targets)
 
 libbase.a: $(base_obj)
 	$(AR) rcs $@ $^
@@ -102,16 +139,17 @@ libfizzwrapper.a: $(fizz_obj)
 	$(AR) rcs $@ $^
 
 iokerneld: $(iokernel_obj) libbase.a libnet.a libruntime.a libfizzwrapper.a base/base.ld $(PCM_DEPS)
-	$(LD) $(LDFLAGS) -o $@ $(iokernel_obj) \
-	libfizzwrapper.a $(FIZZWRAPPER_LIBS) ./bindings/cc/librt++.a libruntime.a libnet.a libbase.a \
+	$(LDXX) $(LDFLAGS) $(CXXFLAGS) -o $@ $(iokernel_obj) \
+	libfizzwrapper.a -Wl,--start-group $(FIZZWRAPPER_LIBS) \
+	./bindings/cc/librt++.a libruntime.a libnet.a libbase.a \
 	$(DPDK_LIBS) \
 	$(PCM_DEPS) $(PCM_LIBS) \
 	-lpthread -lnuma -ldl
 
 $(test_targets): $(test_obj) libbase.a libruntime.a libnet.a libfizzwrapper.a base/base.ld
 	$(LD) $(LDFLAGS) -o $@ $@.o $(RUNTIME_LIBS) \
-	libfizzwrapper.a $(FIZZWRAPPER_LIBS) ./bindings/cc/librt++.a libruntime.a libnet.a libbase.a \
-	-lstdc++ -ldl
+	libfizzwrapper.a -Wl,--start-group $(FIZZWRAPPER_LIBS) \
+	./bindings/cc/librt++.a libruntime.a libnet.a libbase.a
 
 # general build rules for all targets
 src = $(base_src) $(net_src) $(runtime_src) $(iokernel_src) $(fizz_c_src) $(test_src)

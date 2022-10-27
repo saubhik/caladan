@@ -1,40 +1,41 @@
+#include "codec.h"
+
+#include <fizz/crypto/test/TestUtil.h>
+#include <fizz/protocol/Protocol.h>
 #include <folly/ExceptionWrapper.h>
 #include <folly/String.h>
-
-#include <fizz/protocol/Protocol.h>
-#include <fizz/crypto/test/TestUtil.h>
 #include <folly/ssl/OpenSSLPtrTypes.h>
+#include <quic/fizz/handshake/FizzBridge.h>
+#include <quic/handshake/HandshakeLayer.h>
 
-#include <list>
 #include <iostream>
-
-#include "codec.h"
+#include <list>
 
 namespace fizz::test {
 
-folly::ssl::EvpPkeyUniquePtr getPrivateKey(StringPiece key) {
+folly::ssl::EvpPkeyUniquePtr getPrivateKey(StringPiece key)
+{
 	folly::ssl::BioUniquePtr bio(BIO_new(BIO_s_mem()));
 	CHECK(bio);
 	CHECK_EQ(BIO_write(bio.get(), key.data(), key.size()), key.size());
 	folly::ssl::EvpPkeyUniquePtr pkey(
-	PEM_read_bio_PrivateKey(bio.get(), nullptr, nullptr, nullptr));
+		PEM_read_bio_PrivateKey(bio.get(), nullptr, nullptr, nullptr));
 	CHECK(pkey);
 	return pkey;
 }
 
-folly::ssl::X509UniquePtr getCert(folly::StringPiece cert) {
+folly::ssl::X509UniquePtr getCert(folly::StringPiece cert)
+{
 	folly::ssl::BioUniquePtr bio(BIO_new(BIO_s_mem()));
 	CHECK(bio);
 	CHECK_EQ(BIO_write(bio.get(), cert.data(), cert.size()), cert.size());
 	folly::ssl::X509UniquePtr x509(
-	PEM_read_bio_X509(
-	bio.get(), nullptr, nullptr,
-	nullptr));
+		PEM_read_bio_X509(bio.get(), nullptr, nullptr, nullptr));
 	CHECK(x509);
 	return x509;
 }
 
-} // namespace fizz::test
+}  // namespace fizz::test
 
 namespace quic {
 
@@ -69,8 +70,8 @@ struct CipherBytes {
 	const folly::StringPiece initialHex,
 	const folly::StringPiece packetNumberHex)
 	: sample(hexToBytes<SampleBytes>(sampleHex)),
-	  initial(hexToBytes<InitialByte>(initialHex)),
-	  packetNumber(hexToBytes<PacketNumberBytes>(packetNumberHex)) {}
+		initial(hexToBytes<InitialByte>(initialHex)),
+		packetNumber(hexToBytes<PacketNumberBytes>(packetNumberHex)) {}
 };
 
 struct HeaderParams {
@@ -99,17 +100,13 @@ CipherBytes cipherBytes(
 #endif
 
 std::pair<std::unique_ptr<Aead>, std::unique_ptr<PacketNumberCipher>>
-Ciphers::buildCiphers(folly::ByteRange secret) {
+Ciphers::buildCiphers(folly::ByteRange secret)
+{
 	auto cipher = fizz::CipherSuite::TLS_AES_128_GCM_SHA256;
 	auto scheduler = (*state_.context()->getFactory()).makeKeyScheduler(cipher);
-	auto aead = FizzAead::wrap(
-		fizz::Protocol::deriveRecordAeadWithLabel(
-			*state_.context()->getFactory(),
-			*scheduler,
-			cipher,
-			secret,
-			kQuicKeyLabel,
-			kQuicIVLabel));
+	auto aead = FizzAead::wrap(fizz::Protocol::deriveRecordAeadWithLabel(
+		*state_.context()->getFactory(), *scheduler, cipher, secret,
+		kQuicKeyLabel, kQuicIVLabel));
 
 	auto headerCipher = cryptoFactory_.makePacketNumberCipher(secret);
 
@@ -147,30 +144,32 @@ Ciphers::buildCiphers(folly::ByteRange secret) {
 		folly::range(cipherBytes.packetNumber));
 
 	std::cout << "InitialByte: "
-	          << headerParams.initialByte
-	          << " ----decryptLongHeader----> "
-	          << folly::hexlify(cipherBytes.initial)
-	          << std::endl;
+						<< headerParams.initialByte
+						<< " ----decryptLongHeader----> "
+						<< folly::hexlify(cipherBytes.initial)
+						<< std::endl;
 	std::cout << "PacketNumberBytes: "
-	          << headerParams.packetNumberBytes
-	          << " ----decryptLongHeader----> "
-	          << folly::hexlify(cipherBytes.packetNumber)
-	          << std::endl;
+						<< headerParams.packetNumberBytes
+						<< " ----decryptLongHeader----> "
+						<< folly::hexlify(cipherBytes.packetNumber)
+						<< std::endl;
 #endif
 
 	return {std::move(aead), std::move(headerCipher)};
 }
 
-std::shared_ptr<fizz::SelfCert> readCert() {
+std::shared_ptr<fizz::SelfCert> readCert()
+{
 	auto certificate = fizz::test::getCert(fizz::test::kP256Certificate);
 	auto privKey = fizz::test::getPrivateKey(fizz::test::kP256Key);
 	std::vector<folly::ssl::X509UniquePtr> certs;
 	certs.emplace_back(std::move(certificate));
 	return std::make_shared<fizz::SelfCertImpl<fizz::KeyType::P256>>(
-	std::move(privKey), std::move(certs));
+		std::move(privKey), std::move(certs));
 }
 
-void Ciphers::createServerCtx() {
+void Ciphers::createServerCtx()
+{
 	auto cert = readCert();
 	auto certManager = std::make_unique<fizz::server::CertManager>();
 	certManager->addCert(std::move(cert), true);
@@ -187,14 +186,12 @@ void Ciphers::createServerCtx() {
 	state_.context() = std::move(serverCtx);
 }
 
-Ciphers::Ciphers() {
-	createServerCtx();
-}
+Ciphers::Ciphers()
+{ createServerCtx(); }
 
-void Ciphers::computeCiphers(
-	folly::ByteRange secret,
-	uint64_t aeadHashIndex,
-	uint64_t headerCipherHashIndex) {
+void Ciphers::computeCiphers(folly::ByteRange secret, uint64_t aeadHashIndex,
+	uint64_t headerCipherHashIndex)
+{
 	std::unique_ptr<quic::Aead> aead;
 	std::unique_ptr<quic::PacketNumberCipher> headerCipher;
 	std::tie(aead, headerCipher) = buildCiphers(secret);
@@ -202,27 +199,24 @@ void Ciphers::computeCiphers(
 	headerCiphers[headerCipherHashIndex] = std::move(headerCipher);
 }
 
-void Ciphers::inplaceEncrypt(
-	uint64_t aeadHashIndex,
-	uint64_t packetNum,
-	void *header,
-	size_t headerLen,
-	void *body,
-	size_t bodyLen) {
-	std::unique_ptr<folly::IOBuf> plaintext = folly::IOBuf::wrapBuffer(body, bodyLen);
-	std::unique_ptr<folly::IOBuf> associatedData = folly::IOBuf::wrapBuffer(header, headerLen);
+void Ciphers::inplaceEncrypt(uint64_t aeadHashIndex, uint64_t packetNum,
+	void *header, size_t headerLen, void *body,
+	size_t bodyLen)
+{
+	std::unique_ptr<folly::IOBuf> plaintext =
+		folly::IOBuf::wrapBuffer(body, bodyLen);
+	std::unique_ptr<folly::IOBuf> associatedData =
+		folly::IOBuf::wrapBuffer(header, headerLen);
 	plaintext->trimEnd(aeadCiphers.at(aeadHashIndex)->getCipherOverhead());
-	aeadCiphers.at(aeadHashIndex)->inplaceEncrypt(
-		std::move(plaintext), associatedData.get(), packetNum);
+	aeadCiphers.at(aeadHashIndex)
+		->inplaceEncrypt(std::move(plaintext), associatedData.get(), packetNum);
 }
 
-void Ciphers::encryptPacketHeader(
-	uint64_t headerCipherIndex,
-	HeaderForm headerForm,
-	uint8_t *header,
-	size_t headerLen,
-	uint8_t *body,
-	size_t bodyLen) {
+void Ciphers::encryptPacketHeader(uint64_t headerCipherIndex,
+	HeaderForm headerForm, uint8_t *header,
+	size_t headerLen, uint8_t *body,
+	size_t bodyLen)
+{
 	// Header encryption.
 	auto packetNumberLength = parsePacketNumberLength(*header);
 	Sample sample;
@@ -237,11 +231,11 @@ void Ciphers::encryptPacketHeader(
 	folly::MutableByteRange packetNumByteRange(
 		header + headerLen - packetNumberLength, packetNumberLength);
 	if (headerForm == HeaderForm::Short) {
-		headerCiphers.at(headerCipherIndex)->encryptShortHeader(
-			sample, initialByteRange, packetNumByteRange);
+		headerCiphers.at(headerCipherIndex)
+			->encryptShortHeader(sample, initialByteRange, packetNumByteRange);
 	} else {
-		headerCiphers.at(headerCipherIndex)->encryptLongHeader(
-			sample, initialByteRange, packetNumByteRange);
+		headerCiphers.at(headerCipherIndex)
+			->encryptLongHeader(sample, initialByteRange, packetNumByteRange);
 	}
 }
 
@@ -289,4 +283,4 @@ MyCipher::decrypt(
 }
 #endif
 
-} // namespace quic
+}  // namespace quic

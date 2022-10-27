@@ -66,6 +66,7 @@ struct dataplane dp;
 
 /* for initializing encryption */
 CiphersC *cips;
+ReadCodecCiphersC *rccips;
 
 bool allowed_cores_supplied;
 DEFINE_BITMAP(input_allowed_cores, NCPU);
@@ -287,6 +288,7 @@ int main(int argc, char *argv[])
 		return ret;
 
 	cips = CiphersC_create();
+	rccips = ReadCodecCiphersC_create();
 
 #if 0
 	uint8_t buf[48];
@@ -310,7 +312,9 @@ int main(int argc, char *argv[])
 #endif
 
 	dataplane_loop();
+
 	CiphersC_destroy(cips);
+	ReadCodecCiphersC_destroy(rccips);
 
 #if 0
 	free(packet_data);

@@ -13,6 +13,9 @@
 #include <iokernel/queue.h>
 #include <iokernel/shm.h>
 
+#include <net/ip.h>
+#include <net/udp.h>
+
 #include "defs.h"
 #include "sched.h"
 
@@ -29,10 +32,10 @@ static struct rx_net_hdr *rx_prepend_rx_preamble(struct rte_mbuf *buf)
 	uint64_t masked_ol_flags;
 
 	net_hdr = (struct rx_net_hdr *) rte_pktmbuf_prepend(buf,
-			(uint16_t) sizeof(*net_hdr));
+		(uint16_t) sizeof(*net_hdr));
 	RTE_ASSERT(net_hdr != NULL);
 
-	net_hdr->completion_data = (unsigned long)buf;
+	net_hdr->completion_data = (unsigned long) buf;
 	net_hdr->len = rte_pktmbuf_pkt_len(buf) - sizeof(*net_hdr);
 	net_hdr->rss_hash = buf->hash.rss;
 	masked_ol_flags = buf->ol_flags & PKT_RX_IP_CKSUM_MASK;
@@ -40,7 +43,7 @@ static struct rx_net_hdr *rx_prepend_rx_preamble(struct rte_mbuf *buf)
 		net_hdr->csum_type = CHECKSUM_TYPE_UNNECESSARY;
 	else
 		net_hdr->csum_type = CHECKSUM_TYPE_NEEDED;
-	net_hdr->csum = 0; /* unused for now */
+	net_hdr->csum = 0; /* was unused, now a decryption tag */
 
 	return net_hdr;
 }
@@ -56,7 +59,7 @@ static struct rx_net_hdr *rx_prepend_rx_preamble(struct rte_mbuf *buf)
  * and can't be woken or the queue was full.
  */
 bool rx_send_to_runtime(struct proc *p, uint32_t hash, uint64_t cmd,
-			unsigned long payload)
+	unsigned long payload)
 {
 	struct thread *th;
 
@@ -87,6 +90,40 @@ static bool rx_send_pkt_to_runtime(struct proc *p, struct rx_net_hdr *hdr)
 {
 	shmptr_t shmptr;
 
+	/* @saubhik: Decrypt UDP packets here */
+	struct eth_hdr *llhdr;
+	struct ip_hdr *iphdr;
+	struct udp_hdr *udphdr;
+	char *data;
+	uint16_t body_len;
+
+	data = hdr->payload;
+	if (hdr->len >= sizeof(*llhdr)) {
+		llhdr = (struct eth_hdr *) data;
+		data += sizeof(struct eth_hdr);
+		if (ntoh16(llhdr->type) == ETHTYPE_IP) {
+			iphdr = (struct ip_hdr *) data;
+			data += sizeof(struct ip_hdr);
+			if (iphdr->proto == SH_IPPROTO_UDP) {
+				udphdr = (struct udp_hdr *) data;
+				data += sizeof(struct udp_hdr);
+
+				body_len = hdr->len;
+				body_len -= sizeof(struct eth_hdr);
+				body_len -= sizeof(struct ip_hdr);
+				body_len -= sizeof(struct udp_hdr);
+
+				if (ReadCodecCiphersC_decrypt(rccips, (uint8_t *) data, body_len)) {
+					/* Fix the lengths in header fields, if decrypted */
+					hdr->len -= CIPHER_OVERHEAD;
+					iphdr->len = hton16(ntoh16(iphdr->len) - CIPHER_OVERHEAD);
+					udphdr->len = hton16(ntoh16(udphdr->len) - CIPHER_OVERHEAD);
+					hdr->csum = 1; /* hack for a decrypted tag */
+				}
+			}
+		}
+	}
+
 	shmptr = ptr_to_shmptr(&dp.ingress_mbuf_region, hdr, sizeof(*hdr));
 	return rx_send_to_runtime(p, hdr->rss_hash, RX_NET_RECV, shmptr);
 }
@@ -101,10 +138,10 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 	ptr_mac_hdr = rte_pktmbuf_mtod(buf, struct rte_ether_hdr *);
 	ptr_dst_addr = &ptr_mac_hdr->d_addr;
 	log_debug("rx: rx packet with MAC %02" PRIx8 " %02" PRIx8 " %02"
-		  PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8,
-		  ptr_dst_addr->addr_bytes[0], ptr_dst_addr->addr_bytes[1],
-		  ptr_dst_addr->addr_bytes[2], ptr_dst_addr->addr_bytes[3],
-		  ptr_dst_addr->addr_bytes[4], ptr_dst_addr->addr_bytes[5]);
+		PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8,
+		ptr_dst_addr->addr_bytes[0], ptr_dst_addr->addr_bytes[1],
+		ptr_dst_addr->addr_bytes[2], ptr_dst_addr->addr_bytes[3],
+		ptr_dst_addr->addr_bytes[4], ptr_dst_addr->addr_bytes[5]);
 
 	/* handle unicast destinations (send to a single runtime) */
 	if (likely(rte_is_unicast_ether_addr(ptr_dst_addr))) {
@@ -113,18 +150,16 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 
 		/* lookup runtime by MAC in hash table */
 		ret = rte_hash_lookup_data(dp.mac_to_proc,
-				&ptr_dst_addr->addr_bytes[0], &data);
-		if (unlikely(ret < 0)) {
-			STAT_INC(RX_UNREGISTERED_MAC, 1);
+			&ptr_dst_addr->addr_bytes[0], &data);
+		if (unlikely(ret < 0)) { STAT_INC(RX_UNREGISTERED_MAC, 1);
 			log_debug_ratelimited("rx: received packet for unregistered MAC");
 			rte_pktmbuf_free(buf);
 			return;
 		}
 
-		p = (struct proc *)data;
+		p = (struct proc *) data;
 		net_hdr = rx_prepend_rx_preamble(buf);
-		if (!rx_send_pkt_to_runtime(p, net_hdr)) {
-			STAT_INC(RX_UNICAST_FAIL, 1);
+		if (!rx_send_pkt_to_runtime(p, net_hdr)) { STAT_INC(RX_UNICAST_FAIL, 1);
 			log_debug_ratelimited("rx: failed to send unicast packet to runtime");
 			rte_pktmbuf_free(buf);
 		}
@@ -141,10 +176,9 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 			success = rx_send_pkt_to_runtime(dp.clients[i], net_hdr);
 			if (success) {
 				n_sent++;
-			} else {
-				STAT_INC(RX_BROADCAST_FAIL, 1);
+			} else { STAT_INC(RX_BROADCAST_FAIL, 1);
 				log_debug_ratelimited("rx: failed to enqueue broadcast "
-					 "packet to runtime");
+															"packet to runtime");
 			}
 		}
 
@@ -158,11 +192,10 @@ static void rx_one_pkt(struct rte_mbuf *buf)
 
 	/* everything else */
 	log_debug("rx: unhandled packet with MAC %x %x %x %x %x %x",
-		 ptr_dst_addr->addr_bytes[0], ptr_dst_addr->addr_bytes[1],
-		 ptr_dst_addr->addr_bytes[2], ptr_dst_addr->addr_bytes[3],
-		 ptr_dst_addr->addr_bytes[4], ptr_dst_addr->addr_bytes[5]);
-	rte_pktmbuf_free(buf);
-	STAT_INC(RX_UNHANDLED, 1);
+		ptr_dst_addr->addr_bytes[0], ptr_dst_addr->addr_bytes[1],
+		ptr_dst_addr->addr_bytes[2], ptr_dst_addr->addr_bytes[3],
+		ptr_dst_addr->addr_bytes[4], ptr_dst_addr->addr_bytes[5]);
+	rte_pktmbuf_free(buf);STAT_INC(RX_UNHANDLED, 1);
 }
 
 /*
@@ -174,15 +207,15 @@ bool rx_burst(void)
 	uint16_t nb_rx, i;
 
 	/* retrieve packets from NIC queue */
-	nb_rx = rte_eth_rx_burst(dp.port, 0, bufs, IOKERNEL_RX_BURST_SIZE);
-	STAT_INC(RX_PULLED, nb_rx);
+	nb_rx = rte_eth_rx_burst(dp.port, 0, bufs, IOKERNEL_RX_BURST_SIZE);STAT_INC(
+		RX_PULLED, nb_rx);
 	if (nb_rx > 0)
 		log_debug("rx: received %d packets on port %d", nb_rx, dp.port);
 
 	for (i = 0; i < nb_rx; i++) {
 		if (i + RX_PREFETCH_STRIDE < nb_rx) {
 			prefetch(rte_pktmbuf_mtod(bufs[i + RX_PREFETCH_STRIDE],
-				 char *));
+				char *));
 		}
 		rx_one_pkt(bufs[i]);
 	}
@@ -194,7 +227,7 @@ bool rx_burst(void)
  * Callback to unmap the shared memory used by a mempool when destroying it.
  */
 static void rx_mempool_memchunk_free(struct rte_mempool_memhdr *memhdr,
-		void *opaque)
+	void *opaque)
 {
 	mem_unmap_shm(opaque);
 }
@@ -204,8 +237,8 @@ static void rx_mempool_memchunk_free(struct rte_mempool_memhdr *memhdr,
  * rte_pktmbuf_pool_create.
  */
 static struct rte_mempool *rx_pktmbuf_pool_create_in_shm(const char *name,
-		unsigned n, unsigned cache_size, uint16_t priv_size,
-		uint16_t data_room_size, int socket_id)
+	unsigned n, unsigned cache_size, uint16_t priv_size,
+	uint16_t data_room_size, int socket_id)
 {
 	unsigned elt_size;
 	struct rte_pktmbuf_pool_private mbp_priv;
@@ -220,12 +253,12 @@ static struct rte_mempool *rx_pktmbuf_pool_create_in_shm(const char *name,
 		goto fail;
 	}
 	elt_size = sizeof(struct rte_mbuf) + (unsigned) priv_size
-			+ (unsigned) data_room_size;
+		+ (unsigned) data_room_size;
 	mbp_priv.mbuf_data_room_size = data_room_size;
 	mbp_priv.mbuf_priv_size = priv_size;
 
 	mp = rte_mempool_create_empty(name, n, elt_size, cache_size,
-			sizeof(struct rte_pktmbuf_pool_private), socket_id, 0);
+		sizeof(struct rte_pktmbuf_pool_private), socket_id, 0);
 	if (mp == NULL)
 		goto fail;
 
@@ -255,7 +288,8 @@ static struct rte_mempool *rx_pktmbuf_pool_create_in_shm(const char *name,
 	if (ret < 0)
 		goto fail_unmap_memory;
 
-	ret = rte_malloc_heap_memory_add("rx_buf_heap", shbuf, INGRESS_MBUF_SHM_SIZE, NULL, 0, PGSIZE_2MB);
+	ret = rte_malloc_heap_memory_add("rx_buf_heap", shbuf, INGRESS_MBUF_SHM_SIZE,
+		NULL, 0, PGSIZE_2MB);
 	if (ret < 0)
 		goto fail_unmap_memory;
 
@@ -270,7 +304,7 @@ static struct rte_mempool *rx_pktmbuf_pool_create_in_shm(const char *name,
 
 	/* populate mempool using shared memory */
 	ret = rte_mempool_populate_virt(mp, heap_area, len, pg_size,
-			rx_mempool_memchunk_free, heap_area);
+		rx_mempool_memchunk_free, heap_area);
 	if (ret < 0) {
 		log_err("rx: error populating mempool %d", ret);
 		goto fail_unmap_memory;
@@ -296,8 +330,8 @@ int rx_init()
 {
 	/* create a mempool in shared memory to hold the rx mbufs */
 	dp.rx_mbuf_pool = rx_pktmbuf_pool_create_in_shm("RX_MBUF_POOL",
-			IOKERNEL_NUM_MBUFS, MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
-			rte_socket_id());
+		IOKERNEL_NUM_MBUFS, MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
+		rte_socket_id());
 
 	if (dp.rx_mbuf_pool == NULL) {
 		log_err("rx: couldn't create rx mbuf pool");

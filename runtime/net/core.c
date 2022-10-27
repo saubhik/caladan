@@ -83,8 +83,8 @@ static void net_rx_send_completion(unsigned long completion_data)
 
 static struct mbuf *net_rx_alloc_mbuf(struct rx_net_hdr *hdr)
 {
-	struct mbuf *m;
 	void *buf;
+	struct mbuf *m;
 
 	/* allocate the buffer to store the payload */
 	m = smalloc(hdr->len + MBUF_HEAD_LEN);
@@ -93,15 +93,16 @@ static struct mbuf *net_rx_alloc_mbuf(struct rx_net_hdr *hdr)
 
 	buf = (unsigned char *)m + MBUF_HEAD_LEN;
 
-	/* copy the payload and release the buffer back to the iokernel */
 	memcpy(buf, hdr->payload, hdr->len);
 
 	mbuf_init(m, buf, hdr->len, 0);
 	m->len = hdr->len;
 	m->csum_type = hdr->csum_type;
-	m->csum = hdr->csum;
-	m->rss_hash = hdr->rss_hash;
 
+	/* This carries decryption tag */
+	m->csum = hdr->csum;
+
+	m->rss_hash = hdr->rss_hash;
 	m->release = (void (*)(struct mbuf *))sfree;
 
 out:
@@ -249,7 +250,6 @@ static void iokernel_softirq_poll(struct kthread *k)
 					    MBUF_DEFAULT_LEN);
 			m = net_rx_alloc_mbuf(hdr);
 			if (unlikely(!m)) {
-				log_info("iokernel_softirq_poll: dropped!");
 				STAT(DROPS)++;
 				continue;
 			}
@@ -483,7 +483,7 @@ static void net_push_iphdr(struct mbuf *m, uint8_t proto, uint32_t daddr)
 	iphdr = mbuf_push_hdr(m, *iphdr);
 	iphdr->version = IPVERSION;
 	iphdr->header_len = 5;
-	iphdr->tos = IPTOS_DSCP_CS0 | IPTOS_ECN_NOTECT;
+	iphdr->tos = SH_IPTOS_DSCP_CS0 | SH_IPTOS_ECN_NOTECT;
 	iphdr->len = hton16(mbuf_length(m));
 	iphdr->id = 0; /* see RFC 6864 */
 	iphdr->off = hton16(IP_DF);

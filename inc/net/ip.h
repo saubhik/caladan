@@ -83,64 +83,64 @@ struct ip_hdr {
 /*
  * Definitions for IP type of service (ip_tos).
  */
-#define	IPTOS_LOWDELAY		0x10
-#define	IPTOS_THROUGHPUT	0x08
-#define	IPTOS_RELIABILITY	0x04
-#define	IPTOS_MINCOST		0x02
+#define	SH_IPTOS_LOWDELAY		0x10
+#define	SH_IPTOS_THROUGHPUT	0x08
+#define	SH_IPTOS_RELIABILITY	0x04
+#define	SH_IPTOS_MINCOST		0x02
 
 /*
  * Definitions for IP precedence (also in ip_tos) (hopefully unused).
  */
-#define	IPTOS_PREC_NETCONTROL		0xe0
-#define	IPTOS_PREC_INTERNETCONTROL	0xc0
-#define	IPTOS_PREC_CRITIC_ECP		0xa0
-#define	IPTOS_PREC_FLASHOVERRIDE	0x80
-#define	IPTOS_PREC_FLASH		0x60
-#define	IPTOS_PREC_IMMEDIATE		0x40
-#define	IPTOS_PREC_PRIORITY		0x20
-#define	IPTOS_PREC_ROUTINE		0x00
+#define	SH_IPTOS_PREC_NETCONTROL		0xe0
+#define	SH_IPTOS_PREC_INTERNETCONTROL	0xc0
+#define	SH_IPTOS_PREC_CRITIC_ECP		0xa0
+#define	SH_IPTOS_PREC_FLASHOVERRIDE	0x80
+#define	SH_IPTOS_PREC_FLASH		0x60
+#define	SH_IPTOS_PREC_IMMEDIATE		0x40
+#define	SH_IPTOS_PREC_PRIORITY		0x20
+#define	SH_IPTOS_PREC_ROUTINE		0x00
 
 /*
  * Definitions for DiffServ Codepoints as per RFC2474
  */
-#define	IPTOS_DSCP_CS0		0x00
-#define	IPTOS_DSCP_CS1		0x20
-#define	IPTOS_DSCP_AF11		0x28
-#define	IPTOS_DSCP_AF12		0x30
-#define	IPTOS_DSCP_AF13		0x38
-#define	IPTOS_DSCP_CS2		0x40
-#define	IPTOS_DSCP_AF21		0x48
-#define	IPTOS_DSCP_AF22		0x50
-#define	IPTOS_DSCP_AF23		0x58
-#define	IPTOS_DSCP_CS3		0x60
-#define	IPTOS_DSCP_AF31		0x68
-#define	IPTOS_DSCP_AF32		0x70
-#define	IPTOS_DSCP_AF33		0x78
-#define	IPTOS_DSCP_CS4		0x80
-#define	IPTOS_DSCP_AF41		0x88
-#define	IPTOS_DSCP_AF42		0x90
-#define	IPTOS_DSCP_AF43		0x98
-#define	IPTOS_DSCP_CS5		0xa0
-#define	IPTOS_DSCP_EF		0xb8
-#define	IPTOS_DSCP_CS6		0xc0
-#define	IPTOS_DSCP_CS7		0xe0
+#define	SH_IPTOS_DSCP_CS0		0x00
+#define	SH_IPTOS_DSCP_CS1		0x20
+#define	SH_IPTOS_DSCP_AF11		0x28
+#define	SH_IPTOS_DSCP_AF12		0x30
+#define	SH_IPTOS_DSCP_AF13		0x38
+#define	SH_IPTOS_DSCP_CS2		0x40
+#define	SH_IPTOS_DSCP_AF21		0x48
+#define	SH_IPTOS_DSCP_AF22		0x50
+#define	SH_IPTOS_DSCP_AF23		0x58
+#define	SH_IPTOS_DSCP_CS3		0x60
+#define	SH_IPTOS_DSCP_AF31		0x68
+#define	SH_IPTOS_DSCP_AF32		0x70
+#define	SH_IPTOS_DSCP_AF33		0x78
+#define	SH_IPTOS_DSCP_CS4		0x80
+#define	SH_IPTOS_DSCP_AF41		0x88
+#define	SH_IPTOS_DSCP_AF42		0x90
+#define	SH_IPTOS_DSCP_AF43		0x98
+#define	SH_IPTOS_DSCP_CS5		0xa0
+#define	SH_IPTOS_DSCP_EF		0xb8
+#define	SH_IPTOS_DSCP_CS6		0xc0
+#define	SH_IPTOS_DSCP_CS7		0xe0
 
 /*
  * ECN (Explicit Congestion Notification) codepoints in RFC3168 mapped to the
  * lower 2 bits of the TOS field.
  */
-#define	IPTOS_ECN_NOTECT	0x00	/* not-ECT */
-#define	IPTOS_ECN_ECT1		0x01	/* ECN-capable transport (1) */
-#define	IPTOS_ECN_ECT0		0x02	/* ECN-capable transport (0) */
-#define	IPTOS_ECN_CE		0x03	/* congestion experienced */
-#define	IPTOS_ECN_MASK		0x03	/* ECN field mask */
+#define	SH_IPTOS_ECN_NOTECT	0x00	/* not-ECT */
+#define	SH_IPTOS_ECN_ECT1		0x01	/* ECN-capable transport (1) */
+#define	SH_IPTOS_ECN_ECT0		0x02	/* ECN-capable transport (0) */
+#define	SH_IPTOS_ECN_CE		0x03	/* congestion experienced */
+#define	SH_IPTOS_ECN_MASK		0x03	/* ECN field mask */
 
 /*
  * Definitions for options.
  */
-#define	IPOPT_COPIED(o)		((o)&0x80)
-#define	IPOPT_CLASS(o)		((o)&0x60)
-#define	IPOPT_NUMBER(o)		((o)&0x1f)
+#define	SH_IPOPT_COPIED(o)		((o)&0x80)
+#define	SH_IPOPT_CLASS(o)		((o)&0x60)
+#define	SH_IPOPT_NUMBER(o)		((o)&0x1f)
 
 #define	IPOPT_CONTROL		0x00
 #define	IPOPT_RESERVED1		0x20
@@ -171,7 +171,7 @@ struct ip_hdr {
 /*
  * Time stamp option structure.
  */
-struct	ip_timestamp {
+struct	sh_ip_timestamp {
 	uint8_t code;			/* IPOPT_TS */
 	uint8_t len;			/* size of structure (variable) */
 	uint8_t ptr;			/* index of current entry */

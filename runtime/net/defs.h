@@ -7,10 +7,9 @@
 #include <net/mbuf.h>
 #include <net/ethernet.h>
 #include <net/ip.h>
+#include <net/udp.h>
 #include <runtime/net.h>
 #include <runtime/rculist.h>
-
-#include <signal.h>
 
 #include "../defs.h"
 
@@ -89,8 +88,6 @@ static inline void net_tx_ip_or_free(struct mbuf *m, uint8_t proto,
  */
 static inline void mbuf_drop(struct mbuf *m)
 {
-	// raise(SIGABRT);
-	log_info("inside mbuf_drop");
 	mbuf_free(m);
 	STAT(DROPS)++;
 }

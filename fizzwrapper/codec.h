@@ -1,10 +1,9 @@
 #pragma once
 
 #include <fizz/server/FizzServer.h>
-
-#include "Aead.h"
-#include "CryptoFactory.h"
-#include "PacketNumberCipher.h"
+#include <quic/codec/Decode.h>
+#include <quic/fizz/handshake/FizzCryptoFactory.h>
+#include <quic/handshake/Aead.h>
 
 using namespace folly;
 using namespace fizz;
@@ -17,25 +16,14 @@ class Ciphers {
 
 	~Ciphers();
 
-	void computeCiphers(
-		folly::ByteRange secret,
-		uint64_t aeadHashIndex,
+	void computeCiphers(folly::ByteRange secret, uint64_t aeadHashIndex,
 		uint64_t headerCipherHashIndex);
 
-	void inplaceEncrypt(
-		uint64_t aeadHashIndex,
-		uint64_t packetNum,
-		void *header,
-		size_t headerLen,
-		void *body,
-		size_t bodyLen);
+	void inplaceEncrypt(uint64_t aeadHashIndex, uint64_t packetNum, void *header,
+		size_t headerLen, void *body, size_t bodyLen);
 
-	void encryptPacketHeader(
-		uint64_t headerCipherIndex,
-		HeaderForm headerForm,
-		uint8_t *header,
-		size_t headerLen,
-		uint8_t *body,
+	void encryptPacketHeader(uint64_t headerCipherIndex, HeaderForm headerForm,
+		uint8_t *header, size_t headerLen, uint8_t *body,
 		size_t bodyLen);
 
  private:
@@ -52,4 +40,4 @@ class Ciphers {
 	void createServerCtx();
 };
 
-} // namespace quic
+}  // namespace quic
